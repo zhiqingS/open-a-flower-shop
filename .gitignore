@@ -1,0 +1,10 @@
+.DS_Store
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+
+# Local references may contain third-party screenshots and must not be published.
+风格素材/
