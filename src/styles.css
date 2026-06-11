@@ -1,0 +1,95 @@
+:root {
+  color: #4f4540;
+  background:
+    radial-gradient(circle at 20% 15%, rgb(255 255 255 / 80%), transparent 30%),
+    linear-gradient(145deg, #f9f2ed 0%, #eee1dc 100%);
+  font-family:
+    "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, BlinkMacSystemFont,
+    sans-serif;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: minmax(260px, 420px) minmax(320px, 480px);
+  align-items: center;
+  justify-content: center;
+  gap: clamp(24px, 5vw, 72px);
+  min-height: 100vh;
+  padding: 32px;
+}
+
+.prototype-copy {
+  max-width: 420px;
+}
+
+.prototype-copy .eyebrow {
+  margin: 0 0 12px;
+  color: #af6f7c;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.prototype-copy h1 {
+  margin: 0 0 16px;
+  color: #50413c;
+  font-size: clamp(34px, 5vw, 58px);
+  line-height: 1.08;
+}
+
+.prototype-copy p:last-child {
+  margin: 0;
+  color: #7c6c65;
+  font-size: 17px;
+  line-height: 1.75;
+}
+
+#game {
+  overflow: hidden;
+  width: min(430px, calc(100vw - 32px));
+  aspect-ratio: 43 / 76;
+  border: 1px solid rgb(126 91 81 / 15%);
+  border-radius: 28px;
+  background: #f7eee8;
+  box-shadow:
+    0 30px 80px rgb(99 70 63 / 18%),
+    0 8px 24px rgb(99 70 63 / 10%);
+}
+
+#game canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+@media (max-width: 820px) {
+  .app-shell {
+    display: flex;
+    min-height: 100dvh;
+    padding: 0;
+  }
+
+  .prototype-copy {
+    display: none;
+  }
+
+  #game {
+    width: min(100vw, 430px);
+    max-height: 100dvh;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+}
