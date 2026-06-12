@@ -10,6 +10,8 @@ import {
   Node,
   ResolutionPolicy,
   resources,
+  Sprite,
+  SpriteFrame,
   tween,
   UIOpacity,
   UITransform,
@@ -104,6 +106,37 @@ const MATERIAL_COLORS: Record<FlowerId, Color> = {
   "coral-rose": new Color(234, 132, 126, 255),
 };
 
+const PROTOTYPE_ART_IDS = [
+  "dahlia-1",
+  "dahlia-2",
+  "ranunculus-peach-1",
+  "ranunculus-peach-2",
+  "delphinium-1",
+  "delphinium-2",
+  "daisy-1",
+  "daisy-2",
+  "wrapper-back",
+  "wrapper-front",
+  "ribbon-pink",
+] as const;
+
+type PrototypeArtId = (typeof PROTOTYPE_ART_IDS)[number];
+
+interface PrototypeArtSpec {
+  ids: readonly PrototypeArtId[];
+  width: number;
+  height: number;
+  yOffset?: number;
+}
+
+const FLOWER_ART: Record<FlowerId, PrototypeArtSpec> = {
+  dahlia: { ids: ["dahlia-1", "dahlia-2"], width: 88, height: 104 },
+  ranunculus: { ids: ["ranunculus-peach-1", "ranunculus-peach-2"], width: 82, height: 104 },
+  delphinium: { ids: ["delphinium-1", "delphinium-2"], width: 70, height: 128, yOffset: 2 },
+  daisy: { ids: ["daisy-1", "daisy-2"], width: 74, height: 116 },
+  "coral-rose": { ids: ["ranunculus-peach-2"], width: 78, height: 100 },
+};
+
 const PHASE_NAMES: Record<OpeningOrderPhase, string> = {
   order: "查看订单",
   planting: "种下花材",
@@ -148,6 +181,8 @@ export class BouquetPrototype extends Component {
   private transitionLocked = false;
   private audioSource?: AudioSource;
   private sfxClips = new Map<string, AudioClip>();
+  private artFrames = new Map<PrototypeArtId, SpriteFrame>();
+  private artRefreshDone = false;
   private root?: Node;
 
   start(): void {
@@ -157,6 +192,7 @@ export class BouquetPrototype extends Component {
     this.root.addComponent(UITransform).setContentSize(DESIGN_WIDTH, DESIGN_HEIGHT);
     this.node.addChild(this.root);
     this.loadSfx();
+    this.loadPrototypeArt();
     this.renderStage();
   }
 
@@ -612,7 +648,7 @@ export class BouquetPrototype extends Component {
   private renderDelivery(): void {
     this.createLabel("你完成了第一束花，现在把它交给等待的顾客。", -185, 276, 14, COLORS.muted, 370);
     this.createPanel("BouquetCard", 0, 55, 340, 400, COLORS.panel, new Color(231, 219, 201, 255));
-    this.createBouquetPreview(0, 70, 1.35);
+    this.createBouquetPreview(0, 84, 1.18);
     this.createLabel(OPENING_ORDER.bouquetName, -130, -95, 23, COLORS.text, 260);
     this.createLabel("由你亲手种植并制作", -130, -130, 13, COLORS.muted, 260);
     this.createButton(
@@ -1133,17 +1169,19 @@ export class BouquetPrototype extends Component {
     this.root!.addChild(preview);
 
     const spring = bouquetId === "spring-letter";
-    this.createPanel(
-      "WrapperBack",
-      0,
-      -45,
-      130,
-      155,
-      spring ? new Color(221, 234, 220, 255) : new Color(244, 222, 194, 255),
-      undefined,
-      preview,
-      28,
-    );
+    if (!this.createPrototypeArtSprite(preview, "wrapper-back", 0, -45, 148, 138)) {
+      this.createPanel(
+        "WrapperBack",
+        0,
+        -45,
+        130,
+        155,
+        spring ? new Color(221, 234, 220, 255) : new Color(244, 222, 194, 255),
+        undefined,
+        preview,
+        28,
+      );
+    }
     if (spring) {
       this.createFlowerSymbol(preview, "delphinium", -50, 60, 0.88);
       this.createFlowerSymbol(preview, "delphinium", 50, 55, 0.82);
@@ -1154,18 +1192,22 @@ export class BouquetPrototype extends Component {
     this.createFlowerSymbol(preview, "coral-rose", -26, 22, 1.05);
     this.createFlowerSymbol(preview, "coral-rose", 30, 15, 0.98);
     this.createFlowerSymbol(preview, "dahlia", 0, 45, 0.92);
-    this.createPanel(
-      "WrapperFront",
-      0,
-      -70,
-      115,
-      88,
-      spring ? new Color(235, 242, 226, 255) : new Color(250, 233, 210, 255),
-      undefined,
-      preview,
-      24,
-    );
-    this.createPanel("Ribbon", 0, -78, 74, 15, spring ? COLORS.leaf : COLORS.accent, undefined, preview, 8);
+    if (!this.createPrototypeArtSprite(preview, "wrapper-front", 0, -68, 136, 114)) {
+      this.createPanel(
+        "WrapperFront",
+        0,
+        -70,
+        115,
+        88,
+        spring ? new Color(235, 242, 226, 255) : new Color(250, 233, 210, 255),
+        undefined,
+        preview,
+        24,
+      );
+    }
+    if (!this.createPrototypeArtSprite(preview, "ribbon-pink", 0, -106, 82, 96)) {
+      this.createPanel("Ribbon", 0, -78, 74, 15, spring ? COLORS.leaf : COLORS.accent, undefined, preview, 8);
+    }
   }
 
   private createBouquetPreview(x: number, y: number, scale: number): void {
@@ -1175,7 +1217,9 @@ export class BouquetPrototype extends Component {
     preview.setScale(scale, scale, 1);
     this.root!.addChild(preview);
 
-    this.createPanel("WrapperBack", 0, -45, 130, 155, new Color(236, 218, 187, 255), undefined, preview, 28);
+    if (!this.createPrototypeArtSprite(preview, "wrapper-back", 0, -45, 152, 142)) {
+      this.createPanel("WrapperBack", 0, -45, 130, 155, new Color(236, 218, 187, 255), undefined, preview, 28);
+    }
     this.createFlowerSymbol(preview, "delphinium", -48, 60, 0.85);
     this.createFlowerSymbol(preview, "delphinium", 48, 55, 0.8);
     this.createFlowerSymbol(preview, "ranunculus", -43, 8, 0.9);
@@ -1184,8 +1228,12 @@ export class BouquetPrototype extends Component {
     this.createFlowerSymbol(preview, "dahlia", 27, 20, 0.95);
     this.createFlowerSymbol(preview, "daisy", -35, -14, 0.72);
     this.createFlowerSymbol(preview, "daisy", 38, -18, 0.7);
-    this.createPanel("WrapperFront", 0, -70, 115, 88, new Color(248, 232, 207, 255), undefined, preview, 24);
-    this.createPanel("Ribbon", 0, -78, 74, 15, COLORS.accent, undefined, preview, 8);
+    if (!this.createPrototypeArtSprite(preview, "wrapper-front", 0, -68, 140, 118)) {
+      this.createPanel("WrapperFront", 0, -70, 115, 88, new Color(248, 232, 207, 255), undefined, preview, 24);
+    }
+    if (!this.createPrototypeArtSprite(preview, "ribbon-pink", 0, -108, 88, 103)) {
+      this.createPanel("Ribbon", 0, -78, 74, 15, COLORS.accent, undefined, preview, 8);
+    }
   }
 
   private createFlowerSymbol(
@@ -1200,6 +1248,21 @@ export class BouquetPrototype extends Component {
     flower.setPosition(x, y);
     flower.setScale(scale, scale, 1);
     parent.addChild(flower);
+
+    const art = FLOWER_ART[materialId];
+    const artId = this.selectPrototypeArtId(art, x, y);
+    const frame = this.artFrames.get(artId);
+    if (frame) {
+      const transform = flower.getComponent(UITransform)!;
+      const sprite = flower.addComponent(Sprite);
+      sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+      sprite.spriteFrame = frame;
+      transform.setContentSize(art.width, art.height);
+      if (art.yOffset) {
+        flower.setPosition(x, y + art.yOffset);
+      }
+      return flower;
+    }
 
     const graphics = flower.addComponent(Graphics);
     graphics.lineWidth = 4;
@@ -1220,6 +1283,39 @@ export class BouquetPrototype extends Component {
     }
     this.createCircle(flower, 0, materialId === "delphinium" ? 12 : 17, materialId === "daisy" ? 6 : 9, new Color(245, 205, 102, 255));
     return flower;
+  }
+
+  private selectPrototypeArtId(
+    art: PrototypeArtSpec,
+    x: number,
+    y: number,
+  ): PrototypeArtId {
+    const index = Math.abs(Math.round(x * 3 + y * 5)) % art.ids.length;
+    return art.ids[index]!;
+  }
+
+  private createPrototypeArtSprite(
+    parent: Node,
+    artId: PrototypeArtId,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+  ): Node | undefined {
+    const frame = this.artFrames.get(artId);
+    if (!frame) {
+      return undefined;
+    }
+
+    const node = new Node(`Art-${artId}`);
+    const transform = node.addComponent(UITransform);
+    node.setPosition(x, y);
+    const sprite = node.addComponent(Sprite);
+    sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+    sprite.spriteFrame = frame;
+    transform.setContentSize(width, height);
+    parent.addChild(node);
+    return node;
   }
 
   private createSparkleBurst(
@@ -1298,6 +1394,30 @@ export class BouquetPrototype extends Component {
         return;
       }
       clips.forEach((clip) => this.sfxClips.set(clip.name, clip));
+    });
+  }
+
+  private loadPrototypeArt(): void {
+    let remaining = PROTOTYPE_ART_IDS.length;
+    const completeOne = (): void => {
+      remaining -= 1;
+      if (remaining === 0 && this.root && !this.artRefreshDone && !this.transitionLocked) {
+        this.artRefreshDone = true;
+        this.renderStage();
+      }
+    };
+
+    PROTOTYPE_ART_IDS.forEach((artId) => {
+      resources.load(`art/bouquet-v2/${artId}/spriteFrame`, SpriteFrame, (error, frame) => {
+        if (error || !frame) {
+          console.warn(`Unable to load prototype art: ${artId}`, error);
+          completeOne();
+          return;
+        }
+
+        this.artFrames.set(artId, frame);
+        completeOne();
+      });
     });
   }
 
