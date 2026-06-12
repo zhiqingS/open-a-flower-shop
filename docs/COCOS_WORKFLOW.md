@@ -87,6 +87,8 @@ open -n "$COCOS" --args \
 
 ## 当前边界
 
-`assets/scripts/prototype/BouquetPrototype.ts` 当前承载“开业第一单”的完整可玩线框：订单、种植、照料、收获、DIY、交付和再次购买均已接入纯领域状态流。它用于验证流程节奏和交互，不代表正式视觉方案，后续应拆分为正式场景并接入花圃和花材资产。
+`assets/scripts/prototype/BouquetPrototype.ts` 当前承载“开业第一单 + 首单后第二轮”的完整可玩线框：订单、种植、照料、收获、DIY、交付、免费发现、花束选择、一键收割和升级解锁均已接入纯领域状态流。它用于验证流程节奏和交互，不代表正式视觉方案，后续应拆分为正式场景并接入花圃和花材资产。
 
 `assets/scripts/domain/openingOrder.ts` 是第一单状态流的唯一业务规则来源。修改订单阶段、库存、奖励或种植规则时，应同步补充 `tools/domain-tests/tests/openingOrder.test.ts`，避免将规则写回 Cocos 场景组件。
+
+`assets/scripts/domain/secondRound.ts` 是第二轮引导的业务规则来源。修改免费发现、第二轮库存、花束选择、一键收割、升级或土地解锁时，应同步补充 `tools/domain-tests/tests/secondRound.test.ts`。

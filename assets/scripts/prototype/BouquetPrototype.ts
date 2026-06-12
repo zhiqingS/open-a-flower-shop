@@ -6,11 +6,13 @@ import {
   Graphics,
   Label,
   Node,
+  ResolutionPolicy,
   tween,
   UIOpacity,
   UITransform,
   Vec3,
   v3,
+  view,
 } from "cc";
 
 import {
@@ -30,7 +32,6 @@ import {
   OPENING_ORDER,
   accelerateAllPlots,
   acceptOpeningOrder,
-  buyNextSeedPack,
   clearPlotPest,
   createOpeningOrderState,
   deliverOpeningOrder,
@@ -46,6 +47,30 @@ import {
   type PlotGrowth,
   type TutorialPlot,
 } from "../domain/openingOrder";
+import {
+  SECOND_ROUND_BOUQUETS,
+  SECOND_ROUND_FLOWERS,
+  SECOND_ROUND_REWARD_COINS,
+  acknowledgeFlowerDiscovery,
+  claimSecondRoundReward,
+  claimSecondRoundUpgrade,
+  clearSecondRoundPest,
+  createSecondRoundState,
+  deliverSecondRoundBouquet,
+  drawCoralRose,
+  finishSecondRoundGrowth,
+  getSecondRoundBouquet,
+  harvestSecondRoundAll,
+  makeSecondRoundBouquet,
+  plantSecondRoundPlot,
+  selectSecondRoundBouquet,
+  waterSecondRoundPlots,
+  type FlowerId,
+  type SecondRoundBouquetId,
+  type SecondRoundPhase,
+  type SecondRoundPlot,
+  type SecondRoundState,
+} from "../domain/secondRound";
 
 const { ccclass } = _decorator;
 
@@ -68,11 +93,12 @@ const COLORS = {
   success: new Color(94, 153, 110, 255),
 } as const;
 
-const MATERIAL_COLORS: Record<MaterialId, Color> = {
+const MATERIAL_COLORS: Record<FlowerId, Color> = {
   dahlia: new Color(224, 137, 163, 255),
   ranunculus: new Color(235, 188, 119, 255),
   delphinium: new Color(118, 155, 207, 255),
   daisy: new Color(240, 237, 213, 255),
+  "coral-rose": new Color(234, 132, 126, 255),
 };
 
 const PHASE_NAMES: Record<OpeningOrderPhase, string> = {
@@ -88,9 +114,26 @@ const PHASE_NAMES: Record<OpeningOrderPhase, string> = {
   complete: "首单完成",
 };
 
+const SECOND_ROUND_PHASE_NAMES: Record<SecondRoundPhase, string> = {
+  reward: "成长奖励",
+  draw: "免费发现",
+  discovery: "发现新花",
+  planting: "自主种植",
+  watering: "一键浇水",
+  caring: "轻松照料",
+  inspiration: "花束灵感",
+  growing: "等待成熟",
+  harvesting: "一键收割",
+  crafting: "快捷制作",
+  delivery: "交付订单",
+  upgrade: "升级解锁",
+  complete: "自由种植",
+};
+
 @ccclass("BouquetPrototype")
 export class BouquetPrototype extends Component {
   private state: OpeningOrderState = createOpeningOrderState();
+  private secondRound?: SecondRoundState;
   private placements: Placement[] = [];
   private placedNodes: Node[] = [];
   private trayItems = new Map<MaterialId, Node>();
@@ -101,6 +144,8 @@ export class BouquetPrototype extends Component {
   private root?: Node;
 
   start(): void {
+    // Keep the full portrait play area visible on both phones and desktop browsers.
+    view.setDesignResolutionSize(DESIGN_WIDTH, DESIGN_HEIGHT, ResolutionPolicy.SHOW_ALL);
     this.root = new Node("OpeningOrderFlow");
     this.root.addComponent(UITransform).setContentSize(DESIGN_WIDTH, DESIGN_HEIGHT);
     this.node.addChild(this.root);
@@ -121,6 +166,13 @@ export class BouquetPrototype extends Component {
     this.progress = undefined;
 
     this.createPanel("Background", 0, 0, DESIGN_WIDTH, DESIGN_HEIGHT, COLORS.background, undefined, this.root, 0);
+
+    if (this.secondRound) {
+      this.renderSecondRoundHeader();
+      this.renderSecondRoundStage();
+      return;
+    }
+
     this.renderHeader();
 
     switch (this.state.phase) {
@@ -154,6 +206,51 @@ export class BouquetPrototype extends Component {
     this.createLabel(`金币 ${this.state.coins}`, 95, 346, 15, COLORS.accentDark, 105);
     this.createPanel("Phase", 123, 305, 84, 30, COLORS.panel, COLORS.leafLight);
     this.createLabel(PHASE_NAMES[this.state.phase], 86, 305, 12, COLORS.muted, 75);
+  }
+
+  private renderSecondRoundHeader(): void {
+    const state = this.secondRound!;
+    this.createLabel("开个花店", -195, 346, 25, COLORS.text, 180);
+    this.createLabel(`Lv.${state.storeLevel}`, 35, 346, 14, COLORS.success, 55);
+    this.createLabel(`金币 ${state.coins}`, 95, 346, 15, COLORS.accentDark, 105);
+    this.createPanel("Phase", 123, 305, 84, 30, COLORS.panel, COLORS.leafLight);
+    this.createLabel(SECOND_ROUND_PHASE_NAMES[state.phase], 86, 305, 12, COLORS.muted, 75);
+  }
+
+  private renderSecondRoundStage(): void {
+    switch (this.secondRound!.phase) {
+      case "reward":
+        this.renderSecondRoundReward();
+        break;
+      case "draw":
+        this.renderFreeDiscovery();
+        break;
+      case "discovery":
+        this.renderFlowerDiscovery();
+        break;
+      case "planting":
+      case "watering":
+      case "caring":
+      case "growing":
+      case "harvesting":
+        this.renderSecondRoundGarden();
+        break;
+      case "inspiration":
+        this.renderBouquetInspiration();
+        break;
+      case "crafting":
+        this.renderSecondRoundCrafting();
+        break;
+      case "delivery":
+        this.renderSecondRoundDelivery();
+        break;
+      case "upgrade":
+        this.renderSecondRoundUpgrade();
+        break;
+      case "complete":
+        this.renderSecondRoundComplete();
+        break;
+    }
   }
 
   private renderOrder(): void {
@@ -501,24 +598,27 @@ export class BouquetPrototype extends Component {
       0,
       -285,
       290,
-      () => this.updateState(deliverOpeningOrder(this.state)),
+      () => this.startSecondRound(),
       COLORS.success,
     );
   }
 
   private renderRebuying(): void {
-    this.createLabel("订单完成，但循环还没有结束。", -185, 276, 14, COLORS.muted, 370);
+    this.createLabel("首单完成，新的成长目标已经出现。", -185, 276, 14, COLORS.muted, 370);
     this.createPanel("RewardCard", 0, 65, 350, 390, COLORS.panel, new Color(231, 219, 201, 255));
     this.createCircle(this.root!, 0, 125, 52, COLORS.gold);
     this.createLabel(`${this.state.coins}`, -65, 125, 28, Color.WHITE, 130);
-    this.createLabel("首单奖励已到账", -130, 45, 20, COLORS.text, 260);
-    this.createLabel("购买下一批种子后，就可以继续种花、制作与交付。", -145, -10, 13, COLORS.muted, 290);
+    this.createLabel("继续进入第二轮体验", -130, 45, 20, COLORS.text, 260);
+    this.createLabel("获得新花种、选择花束，并解锁一键收割。", -145, -10, 13, COLORS.muted, 290);
     this.createButton(
-      `购买下一批种子  -${OPENING_ORDER.nextSeedPackCost}`,
+      "进入第二轮",
       0,
       -285,
-      290,
-      () => this.updateState(buyNextSeedPack(this.state)),
+      240,
+      () => {
+        this.secondRound = createSecondRoundState(this.state.coins);
+        this.renderStage();
+      },
       COLORS.accent,
     );
   }
@@ -552,6 +652,353 @@ export class BouquetPrototype extends Component {
     );
   }
 
+  private startSecondRound(): void {
+    const delivered = deliverOpeningOrder(this.state);
+    this.state = delivered;
+    this.secondRound = createSecondRoundState(delivered.coins);
+    this.placements = [];
+    this.renderStage();
+  }
+
+  private renderSecondRoundReward(): void {
+    this.createLabel("首单完成！奖励集中出现，不打断你的种花节奏。", -185, 276, 14, COLORS.muted, 370);
+    this.createPanel("SecondRoundReward", 0, 55, 360, 420, COLORS.panel, COLORS.gold);
+
+    this.createCircle(this.root!, -85, 100, 48, COLORS.gold);
+    this.createLabel(`+${SECOND_ROUND_REWARD_COINS}`, -125, 100, 22, Color.WHITE, 80);
+    this.createLabel("成长金币", -130, 35, 14, COLORS.text, 90);
+
+    this.createCircle(this.root!, 85, 100, 48, COLORS.accent);
+    this.createLabel("?", 66, 100, 32, Color.WHITE, 38);
+    this.createLabel("免费发现", 40, 35, 14, COLORS.text, 90);
+
+    this.createLabel("店铺升级至 Lv.2", -115, -45, 22, COLORS.success, 230);
+    this.createLabel("下一步将必定发现一款未拥有的新花", -145, -88, 13, COLORS.muted, 290);
+    this.createButton(
+      "领取全部奖励",
+      0,
+      -285,
+      240,
+      () => this.updateSecondRoundState(claimSecondRoundReward(this.secondRound!)),
+      COLORS.success,
+    );
+  }
+
+  private renderFreeDiscovery(): void {
+    this.createLabel("每天都有一次免费发现机会，首次必得新花。", -185, 276, 14, COLORS.muted, 370);
+    this.createPanel("DiscoveryCard", 0, 55, 350, 420, COLORS.panel, COLORS.accent);
+    this.createCircle(this.root!, 0, 105, 74, new Color(251, 224, 213, 255));
+    this.createLabel("?", -35, 105, 58, COLORS.accentDark, 70);
+    this.createLabel("今日免费发现", -120, 0, 24, COLORS.text, 240);
+    this.createLabel("不会抽到重复花种", -105, -45, 14, COLORS.success, 210);
+    this.createButton(
+      "免费发现新花",
+      0,
+      -285,
+      240,
+      () => this.updateSecondRoundState(drawCoralRose(this.secondRound!)),
+    );
+  }
+
+  private renderFlowerDiscovery(): void {
+    this.createLabel("新花会以成熟期形态首次亮相。", -185, 276, 14, COLORS.muted, 370);
+    this.createPanel("NewFlowerCard", 0, 55, 350, 430, new Color(255, 247, 239, 255), COLORS.accent);
+    this.createCircle(this.root!, 0, 80, 110, new Color(252, 226, 219, 255));
+    this.createFlowerSymbol(this.root!, "coral-rose", 0, 78, 2.15);
+    this.createLabel("发现新花", -70, -55, 14, COLORS.accentDark, 140);
+    this.createLabel(SECOND_ROUND_FLOWERS["coral-rose"].name, -110, -92, 27, COLORS.text, 220);
+    this.createLabel("花语：温柔而坚定的期待", -125, -132, 13, COLORS.muted, 250);
+    this.createButton(
+      "收下种子，去种植",
+      0,
+      -285,
+      250,
+      () => this.updateSecondRoundState(acknowledgeFlowerDiscovery(this.secondRound!)),
+      COLORS.accent,
+    );
+  }
+
+  private renderSecondRoundGarden(): void {
+    const state = this.secondRound!;
+    const instructions: Record<
+      "planting" | "watering" | "caring" | "growing" | "harvesting",
+      string
+    > = {
+      planting: "这次由你亲手种下新旧花种，不再逐步讲解。",
+      watering: "一次浇水照顾全部幼苗。",
+      caring: "清除唯一一处虫害，然后去寻找花束灵感。",
+      growing: "花束目标已经选好，返回花圃时花朵恰好成熟。",
+      harvesting: "你已经学会逐块收割，现在解锁第一次一键收割。",
+    };
+    this.createLabel(
+      instructions[state.phase as keyof typeof instructions],
+      -185,
+      276,
+      14,
+      COLORS.muted,
+      370,
+    );
+    this.createPanel("SecondRoundGoal", 0, 220, 370, 60, COLORS.panel);
+    this.createLabel(
+      state.selectedBouquetId
+        ? `本轮目标：${getSecondRoundBouquet(state.selectedBouquetId).name}`
+        : "新花种：珊瑚玫瑰 · 已加入种子袋",
+      -165,
+      220,
+      14,
+      COLORS.text,
+      330,
+    );
+
+    state.plots.forEach((plot, index) => this.createSecondRoundPlot(plot, index));
+
+    if (state.phase === "watering") {
+      this.createButton(
+        "一键浇水",
+        0,
+        -310,
+        230,
+        () => this.updateSecondRoundState(waterSecondRoundPlots(state)),
+        COLORS.blue,
+      );
+    } else if (state.phase === "growing") {
+      this.createButton(
+        "回到花圃，见证成熟",
+        0,
+        -310,
+        260,
+        () => this.updateSecondRoundState(finishSecondRoundGrowth(state)),
+        COLORS.accent,
+      );
+    } else if (state.phase === "harvesting") {
+      this.createButton(
+        "一键收割全部花材",
+        0,
+        -310,
+        270,
+        () => this.updateSecondRoundState(harvestSecondRoundAll(state)),
+        COLORS.success,
+      );
+    } else {
+      const planted = state.plots.filter((plot) => plot.growth !== "empty").length;
+      const text =
+        state.phase === "planting"
+          ? `已种植 ${planted} / ${state.plots.length}`
+          : "点击闪烁土地清除小虫";
+      this.createPanel("SecondRoundHint", 0, -310, 250, 46, new Color(236, 232, 219, 255));
+      this.createLabel(text, -110, -310, 14, COLORS.muted, 220);
+    }
+  }
+
+  private createSecondRoundPlot(plot: SecondRoundPlot, index: number): void {
+    const state = this.secondRound!;
+    const column = index % 3;
+    const row = Math.floor(index / 3);
+    const x = -120 + column * 120;
+    const y = 70 - row * 155;
+    const actionable =
+      (state.phase === "planting" && plot.growth === "empty") ||
+      (state.phase === "caring" && plot.hasPest && !plot.pestCleared);
+    const panel = this.createPanel(
+      plot.id,
+      x,
+      y,
+      106,
+      130,
+      actionable ? new Color(255, 249, 220, 255) : new Color(230, 210, 180, 255),
+      actionable ? COLORS.gold : COLORS.soil,
+    );
+    this.createPanel("Soil", 0, -38, 86, 34, COLORS.soil, COLORS.soilDark, panel, 12);
+
+    if (plot.growth === "empty") {
+      this.createLabel("＋", -18, 12, 30, COLORS.soilDark, 36, panel);
+    } else if (plot.growth === "harvested") {
+      this.createLabel("已收割", -35, 10, 13, COLORS.success, 70, panel);
+    } else {
+      this.createFlowerSymbol(panel, plot.flowerId, 0, 8, plot.growth === "mature" ? 1 : 0.62);
+      if (plot.growth === "watered") {
+        this.createCircle(panel, 34, 34, 6, COLORS.blue);
+      }
+    }
+
+    let status = plot.growth === "mature" ? `成熟 +${plot.harvestCount}` : "生长中";
+    if (state.phase === "planting" && plot.growth === "empty") {
+      status = "点击种植";
+    } else if (state.phase === "caring" && plot.hasPest && !plot.pestCleared) {
+      status = "发现小虫";
+    } else if (plot.growth === "empty") {
+      status = "空地";
+    } else if (plot.growth === "harvested") {
+      status = "库存已增加";
+    }
+    this.createLabel(SECOND_ROUND_FLOWERS[plot.flowerId].shortName, -43, -58, 10, COLORS.text, 86, panel);
+    this.createLabel(status, -43, 48, 11, actionable ? COLORS.accentDark : COLORS.muted, 86, panel);
+
+    panel.on(Node.EventType.TOUCH_END, () => {
+      if (state.phase === "planting" && plot.growth === "empty") {
+        this.updateSecondRoundState(plantSecondRoundPlot(state, plot.id));
+      } else if (state.phase === "caring" && plot.hasPest && !plot.pestCleared) {
+        this.updateSecondRoundState(clearSecondRoundPest(state, plot.id));
+      }
+    });
+  }
+
+  private renderBouquetInspiration(): void {
+    this.createLabel("选一束你真正想制作的花，选择会成为本轮目标。", -185, 276, 14, COLORS.muted, 370);
+    SECOND_ROUND_BOUQUETS.forEach((bouquet, index) => {
+      const x = index === 0 ? -95 : 95;
+      this.createPanel(bouquet.id, x, 45, 178, 420, COLORS.panel, index === 0 ? COLORS.gold : COLORS.leafLight);
+      this.createSecondRoundBouquetPreview(bouquet.id, x, 105, 0.7);
+      this.createLabel(bouquet.name, x - 75, -55, 18, COLORS.text, 150);
+      this.createLabel(bouquet.description, x - 75, -92, 11, COLORS.muted, 150);
+      this.createLabel(`订单奖励 ${bouquet.rewardCoins}`, x - 75, -140, 12, COLORS.accentDark, 150);
+      this.createButton(
+        "选择这束",
+        x,
+        -190,
+        130,
+        () => this.updateSecondRoundState(selectSecondRoundBouquet(this.secondRound!, bouquet.id)),
+        index === 0 ? COLORS.gold : COLORS.success,
+      );
+    });
+  }
+
+  private renderSecondRoundCrafting(): void {
+    const state = this.secondRound!;
+    const bouquet = getSecondRoundBouquet(state.selectedBouquetId!);
+    this.createLabel("一键收割完成，库存足够制作两种候选花束。", -185, 276, 14, COLORS.muted, 370);
+    this.createPanel("CraftingCard", 0, 55, 360, 420, COLORS.panel, COLORS.leafLight);
+    this.createSecondRoundBouquetPreview(bouquet.id, 0, 100, 1);
+    this.createLabel(`已选择：${bouquet.name}`, -135, -65, 22, COLORS.text, 270);
+    this.createLabel("你可以制作的花束", -135, -110, 13, COLORS.muted, 270);
+    this.createLabel(
+      SECOND_ROUND_BOUQUETS.map((candidate) => `✓ ${candidate.name}`).join("    "),
+      -145,
+      -145,
+      12,
+      COLORS.success,
+      290,
+    );
+    this.createButton(
+      `快捷制作「${bouquet.name}」`,
+      0,
+      -285,
+      290,
+      () => this.updateSecondRoundState(makeSecondRoundBouquet(state)),
+      COLORS.accent,
+    );
+  }
+
+  private renderSecondRoundDelivery(): void {
+    const state = this.secondRound!;
+    const bouquet = getSecondRoundBouquet(state.selectedBouquetId!);
+    this.createLabel("第二束花已经完成，现在交付你亲自选择的订单。", -185, 276, 14, COLORS.muted, 370);
+    this.createPanel("SecondDeliveryCard", 0, 55, 350, 420, COLORS.panel, COLORS.accent);
+    this.createSecondRoundBouquetPreview(bouquet.id, 0, 95, 1.1);
+    this.createLabel(bouquet.name, -120, -90, 25, COLORS.text, 240);
+    this.createLabel(`交付奖励 ${bouquet.rewardCoins} 金币`, -120, -132, 14, COLORS.gold, 240);
+    this.createButton(
+      "交付第二束花",
+      0,
+      -285,
+      250,
+      () => this.updateSecondRoundState(deliverSecondRoundBouquet(state)),
+      COLORS.success,
+    );
+  }
+
+  private renderSecondRoundUpgrade(): void {
+    const state = this.secondRound!;
+    this.createLabel("第二轮目标完成，成长反馈集中结算。", -185, 276, 14, COLORS.muted, 370);
+    this.createPanel("UpgradeCard", 0, 55, 350, 420, COLORS.panel, COLORS.gold);
+    this.createCircle(this.root!, 0, 120, 68, COLORS.success);
+    this.createLabel("Lv.3", -42, 120, 30, Color.WHITE, 84);
+    this.createLabel("店铺升级", -85, 25, 24, COLORS.text, 170);
+    this.createLabel("解锁 2 块新土地", -105, -28, 18, COLORS.accentDark, 210);
+    this.createLabel(`当前金币 ${state.coins}`, -105, -72, 14, COLORS.gold, 210);
+    this.createButton(
+      "领取升级奖励",
+      0,
+      -285,
+      250,
+      () => this.updateSecondRoundState(claimSecondRoundUpgrade(state)),
+      COLORS.success,
+    );
+  }
+
+  private renderSecondRoundComplete(): void {
+    const state = this.secondRound!;
+    this.createLabel("强制引导结束，接下来由玩家决定种什么、做哪束花。", -185, 276, 14, COLORS.muted, 370);
+    this.createPanel("SecondCompleteCard", 0, 55, 360, 430, COLORS.panel, COLORS.leafLight);
+    this.createCircle(this.root!, 0, 130, 62, COLORS.success);
+    this.createLabel("✓", -31, 130, 44, Color.WHITE, 62);
+    this.createLabel("你已经可以自由经营", -135, 35, 24, COLORS.text, 270);
+    this.createLabel("发现新花 · 选择目标 · 一键收割", -135, -15, 14, COLORS.accentDark, 270);
+    this.createLabel(`Lv.${state.storeLevel} · 已开放 ${state.unlockedPlotCount} 块土地`, -135, -62, 15, COLORS.success, 270);
+    this.createLabel("下一步：用正式美术与反馈验证这些爽点是否成立", -145, -110, 12, COLORS.muted, 290);
+    this.createButton(
+      "重新体验完整引导",
+      0,
+      -285,
+      270,
+      () => {
+        this.state = createOpeningOrderState();
+        this.secondRound = undefined;
+        this.placements = [];
+        this.renderStage();
+      },
+      COLORS.success,
+    );
+  }
+
+  private createSecondRoundBouquetPreview(
+    bouquetId: SecondRoundBouquetId,
+    x: number,
+    y: number,
+    scale: number,
+  ): void {
+    const preview = new Node(`SecondBouquet-${bouquetId}`);
+    preview.addComponent(UITransform).setContentSize(220, 250);
+    preview.setPosition(x, y);
+    preview.setScale(scale, scale, 1);
+    this.root!.addChild(preview);
+
+    const spring = bouquetId === "spring-letter";
+    this.createPanel(
+      "WrapperBack",
+      0,
+      -45,
+      130,
+      155,
+      spring ? new Color(221, 234, 220, 255) : new Color(244, 222, 194, 255),
+      undefined,
+      preview,
+      28,
+    );
+    if (spring) {
+      this.createFlowerSymbol(preview, "delphinium", -50, 60, 0.88);
+      this.createFlowerSymbol(preview, "delphinium", 50, 55, 0.82);
+    } else {
+      this.createFlowerSymbol(preview, "daisy", -48, 50, 0.85);
+      this.createFlowerSymbol(preview, "daisy", 48, 48, 0.8);
+    }
+    this.createFlowerSymbol(preview, "coral-rose", -26, 22, 1.05);
+    this.createFlowerSymbol(preview, "coral-rose", 30, 15, 0.98);
+    this.createFlowerSymbol(preview, "dahlia", 0, 45, 0.92);
+    this.createPanel(
+      "WrapperFront",
+      0,
+      -70,
+      115,
+      88,
+      spring ? new Color(235, 242, 226, 255) : new Color(250, 233, 210, 255),
+      undefined,
+      preview,
+      24,
+    );
+    this.createPanel("Ribbon", 0, -78, 74, 15, spring ? COLORS.leaf : COLORS.accent, undefined, preview, 8);
+  }
+
   private createBouquetPreview(x: number, y: number, scale: number): void {
     const preview = new Node("BouquetPreview");
     preview.addComponent(UITransform).setContentSize(220, 250);
@@ -574,7 +1021,7 @@ export class BouquetPrototype extends Component {
 
   private createFlowerSymbol(
     parent: Node,
-    materialId: MaterialId,
+    materialId: FlowerId,
     x: number,
     y: number,
     scale: number,
@@ -607,6 +1054,11 @@ export class BouquetPrototype extends Component {
 
   private updateState(state: OpeningOrderState): void {
     this.state = state;
+    this.renderStage();
+  }
+
+  private updateSecondRoundState(state: SecondRoundState): void {
+    this.secondRound = state;
     this.renderStage();
   }
 
