@@ -1,5 +1,7 @@
 import {
   _decorator,
+  AudioClip,
+  AudioSource,
   Color,
   Component,
   EventTouch,
@@ -7,6 +9,7 @@ import {
   Label,
   Node,
   ResolutionPolicy,
+  resources,
   tween,
   UIOpacity,
   UITransform,
@@ -141,6 +144,10 @@ export class BouquetPrototype extends Component {
   private instruction?: Label;
   private progress?: Label;
   private finishButton?: Node;
+  private matureFlowerNodes: Array<{ node: Node; flowerId: FlowerId }> = [];
+  private transitionLocked = false;
+  private audioSource?: AudioSource;
+  private sfxClips = new Map<string, AudioClip>();
   private root?: Node;
 
   start(): void {
@@ -149,6 +156,7 @@ export class BouquetPrototype extends Component {
     this.root = new Node("OpeningOrderFlow");
     this.root.addComponent(UITransform).setContentSize(DESIGN_WIDTH, DESIGN_HEIGHT);
     this.node.addChild(this.root);
+    this.loadSfx();
     this.renderStage();
   }
 
@@ -161,6 +169,7 @@ export class BouquetPrototype extends Component {
     this.trayItems.clear();
     this.countLabels.clear();
     this.placedNodes = [];
+    this.matureFlowerNodes = [];
     this.finishButton = undefined;
     this.instruction = undefined;
     this.progress = undefined;
@@ -542,25 +551,38 @@ export class BouquetPrototype extends Component {
   }
 
   private finishBouquet(): void {
-    if (!isBouquetComplete(this.placements) || !this.finishButton) {
+    if (!isBouquetComplete(this.placements) || !this.finishButton || this.transitionLocked) {
       return;
     }
 
+    this.transitionLocked = true;
     this.finishButton.active = false;
+    this.playSfx("bouquet", 0.42);
+    this.createSparkleBurst(this.root!, 0, 45, COLORS.gold, 16, 150);
+    this.createFloatingText("花束完成！", 0, 185, COLORS.accentDark, 22, 0.05);
     this.placedNodes.forEach((node, index) => {
       const target = node.position.clone();
       target.y += 4 + (index % 3) * 2;
       target.x += index % 2 === 0 ? -3 : 3;
-      tween(node).to(0.28, { position: target }).start();
+      const scale = node.scale.clone();
+      tween(node)
+        .delay(index * 0.035)
+        .to(0.22, {
+          position: target,
+          scale: v3(scale.x * 1.08, scale.y * 1.08, 1),
+        })
+        .to(0.18, { scale })
+        .start();
     });
     if (this.instruction) {
-      this.instruction.string = "系统正在做最后整理…";
+      this.instruction.string = "漂亮！系统正在做最后整理…";
     }
 
     this.scheduleOnce(() => {
       this.state = makeOpeningBouquet(this.state);
+      this.transitionLocked = false;
       this.renderStage();
-    }, 0.5);
+    }, 1);
   }
 
   private updateBouquetState(): void {
@@ -704,7 +726,7 @@ export class BouquetPrototype extends Component {
     this.createLabel("新花会以成熟期形态首次亮相。", -185, 276, 14, COLORS.muted, 370);
     this.createPanel("NewFlowerCard", 0, 55, 350, 430, new Color(255, 247, 239, 255), COLORS.accent);
     this.createCircle(this.root!, 0, 80, 110, new Color(252, 226, 219, 255));
-    this.createFlowerSymbol(this.root!, "coral-rose", 0, 78, 2.15);
+    const flower = this.createFlowerSymbol(this.root!, "coral-rose", 0, 78, 2.15);
     this.createLabel("发现新花", -70, -55, 14, COLORS.accentDark, 140);
     this.createLabel(SECOND_ROUND_FLOWERS["coral-rose"].name, -110, -92, 27, COLORS.text, 220);
     this.createLabel("花语：温柔而坚定的期待", -125, -132, 13, COLORS.muted, 250);
@@ -716,6 +738,20 @@ export class BouquetPrototype extends Component {
       () => this.updateSecondRoundState(acknowledgeFlowerDiscovery(this.secondRound!)),
       COLORS.accent,
     );
+
+    this.transitionLocked = true;
+    flower.setScale(0.15, 0.15, 1);
+    this.playSfx("reveal", 0.42);
+    this.createSparkleBurst(this.root!, 0, 85, COLORS.gold, 18, 145, 0.12);
+    this.createFloatingText("NEW", 0, 205, COLORS.accentDark, 18, 0.18);
+    tween(flower)
+      .delay(0.12)
+      .to(0.46, { scale: v3(2.42, 2.42, 1) })
+      .to(0.16, { scale: v3(2.15, 2.15, 1) })
+      .start();
+    this.scheduleOnce(() => {
+      this.transitionLocked = false;
+    }, 0.85);
   }
 
   private renderSecondRoundGarden(): void {
@@ -767,7 +803,7 @@ export class BouquetPrototype extends Component {
         0,
         -310,
         260,
-        () => this.updateSecondRoundState(finishSecondRoundGrowth(state)),
+        () => this.playSecondRoundMaturity(state),
         COLORS.accent,
       );
     } else if (state.phase === "harvesting") {
@@ -776,7 +812,7 @@ export class BouquetPrototype extends Component {
         0,
         -310,
         270,
-        () => this.updateSecondRoundState(harvestSecondRoundAll(state)),
+        () => this.playOneTapHarvest(state),
         COLORS.success,
       );
     } else {
@@ -815,7 +851,16 @@ export class BouquetPrototype extends Component {
     } else if (plot.growth === "harvested") {
       this.createLabel("已收割", -35, 10, 13, COLORS.success, 70, panel);
     } else {
-      this.createFlowerSymbol(panel, plot.flowerId, 0, 8, plot.growth === "mature" ? 1 : 0.62);
+      const flower = this.createFlowerSymbol(
+        panel,
+        plot.flowerId,
+        0,
+        8,
+        plot.growth === "mature" ? 1 : 0.62,
+      );
+      if (plot.growth === "mature") {
+        this.matureFlowerNodes.push({ node: flower, flowerId: plot.flowerId });
+      }
       if (plot.growth === "watered") {
         this.createCircle(panel, 34, 34, 6, COLORS.blue);
       }
@@ -841,6 +886,130 @@ export class BouquetPrototype extends Component {
         this.updateSecondRoundState(clearSecondRoundPest(state, plot.id));
       }
     });
+  }
+
+  private playSecondRoundMaturity(state: SecondRoundState): void {
+    if (this.transitionLocked) {
+      return;
+    }
+
+    this.transitionLocked = true;
+    this.secondRound = finishSecondRoundGrowth(state);
+    this.renderStage();
+    this.playSfx("bloom", 0.38);
+    this.createFloatingText("全部盛开！", 0, 185, COLORS.accentDark, 22, 0.25);
+
+    this.matureFlowerNodes.forEach(({ node, flowerId }, index) => {
+      const finalScale = node.scale.clone();
+      node.setScale(finalScale.x * 0.16, finalScale.y * 0.16, 1);
+      tween(node)
+        .delay(index * 0.12)
+        .to(0.32, {
+          scale: v3(finalScale.x * 1.18, finalScale.y * 1.18, 1),
+        })
+        .to(0.14, { scale: finalScale })
+        .start();
+
+      const parent = node.parent!;
+      this.createSparkleBurst(
+        parent,
+        node.position.x,
+        node.position.y + 18,
+        MATERIAL_COLORS[flowerId],
+        5,
+        42,
+        index * 0.12,
+      );
+    });
+
+    this.scheduleOnce(() => {
+      this.transitionLocked = false;
+    }, 1.05);
+  }
+
+  private playOneTapHarvest(state: SecondRoundState): void {
+    if (this.transitionLocked) {
+      return;
+    }
+
+    this.transitionLocked = true;
+    this.playSfx("harvest", 0.4);
+    this.createFloatingText("花材连续入库！", 0, 195, COLORS.success, 20, 0.1);
+
+    this.matureFlowerNodes.forEach(({ node, flowerId }, index) => {
+      const plot = node.parent!;
+      const start = plot.position.clone();
+      start.y += 8;
+      const token = this.createFlowerSymbol(
+        this.root!,
+        flowerId,
+        start.x,
+        start.y,
+        0.52,
+      );
+      const tokenOpacity = token.addComponent(UIOpacity);
+      const flowerOpacity = node.addComponent(UIOpacity);
+      const delay = index * 0.085;
+
+      this.createFloatingText(
+        "+2",
+        start.x,
+        start.y + 55,
+        MATERIAL_COLORS[flowerId],
+        16,
+        delay,
+      );
+      tween(token)
+        .delay(delay)
+        .to(0.42, {
+          position: v3(145, 305, 0),
+          scale: v3(0.16, 0.16, 1),
+        })
+        .call(() => token.destroy())
+        .start();
+      tween(tokenOpacity)
+        .delay(delay + 0.26)
+        .to(0.16, { opacity: 0 })
+        .start();
+      tween(flowerOpacity)
+        .delay(delay)
+        .to(0.18, { opacity: 70 })
+        .start();
+    });
+
+    this.scheduleOnce(() => {
+      this.secondRound = harvestSecondRoundAll(state);
+      this.transitionLocked = false;
+      this.renderStage();
+      this.createSparkleBurst(this.root!, 145, 305, COLORS.gold, 12, 80);
+    }, 0.95);
+  }
+
+  private playQuickCraft(state: SecondRoundState): void {
+    if (this.transitionLocked || !state.selectedBouquetId) {
+      return;
+    }
+
+    this.transitionLocked = true;
+    const preview = this.root?.getChildByName(`SecondBouquet-${state.selectedBouquetId}`);
+    this.playSfx("bouquet", 0.42);
+    this.createSparkleBurst(this.root!, 0, 100, COLORS.gold, 18, 150);
+    this.createFloatingText("制作完成！", 0, 220, COLORS.accentDark, 22, 0.08);
+    if (preview) {
+      const scale = preview.scale.clone();
+      tween(preview)
+        .to(0.28, {
+          scale: v3(scale.x * 1.14, scale.y * 1.14, 1),
+        })
+        .to(0.2, { scale })
+        .start();
+    }
+
+    this.scheduleOnce(() => {
+      this.secondRound = makeSecondRoundBouquet(state);
+      this.transitionLocked = false;
+      this.renderStage();
+    }, 0.9);
   }
 
   private renderBouquetInspiration(): void {
@@ -884,7 +1053,7 @@ export class BouquetPrototype extends Component {
       0,
       -285,
       290,
-      () => this.updateSecondRoundState(makeSecondRoundBouquet(state)),
+      () => this.playQuickCraft(state),
       COLORS.accent,
     );
   }
@@ -1025,7 +1194,7 @@ export class BouquetPrototype extends Component {
     x: number,
     y: number,
     scale: number,
-  ): void {
+  ): Node {
     const flower = new Node(`Flower-${materialId}`);
     flower.addComponent(UITransform).setContentSize(70, 90);
     flower.setPosition(x, y);
@@ -1050,6 +1219,93 @@ export class BouquetPrototype extends Component {
       this.createCircle(flower, offsetX, offsetY, materialId === "daisy" ? 6 : 9, petalColor);
     }
     this.createCircle(flower, 0, materialId === "delphinium" ? 12 : 17, materialId === "daisy" ? 6 : 9, new Color(245, 205, 102, 255));
+    return flower;
+  }
+
+  private createSparkleBurst(
+    parent: Node,
+    x: number,
+    y: number,
+    color: Color,
+    count: number,
+    distance: number,
+    delay = 0,
+  ): void {
+    for (let index = 0; index < count; index += 1) {
+      const angle = (Math.PI * 2 * index) / count;
+      const radius = distance * (0.72 + (index % 3) * 0.14);
+      const sparkle = this.createCircle(
+        parent,
+        x,
+        y,
+        index % 3 === 0 ? 5 : 3,
+        color,
+      );
+      const opacity = sparkle.addComponent(UIOpacity);
+      opacity.opacity = 0;
+      sparkle.setScale(0.2, 0.2, 1);
+
+      tween(sparkle)
+        .delay(delay + index * 0.012)
+        .to(0.18, { scale: v3(1.15, 1.15, 1) })
+        .to(0.34, {
+          position: v3(x + Math.cos(angle) * radius, y + Math.sin(angle) * radius, 0),
+          scale: v3(0.15, 0.15, 1),
+        })
+        .call(() => sparkle.destroy())
+        .start();
+      tween(opacity)
+        .delay(delay + index * 0.012)
+        .to(0.12, { opacity: 255 })
+        .to(0.4, { opacity: 0 })
+        .start();
+    }
+  }
+
+  private createFloatingText(
+    text: string,
+    x: number,
+    y: number,
+    color: Color,
+    fontSize: number,
+    delay = 0,
+  ): void {
+    const width = 220;
+    const label = this.createLabel(text, x - width / 2, y, fontSize, color, width);
+    const opacity = label.node.addComponent(UIOpacity);
+    const start = label.node.position.clone();
+    opacity.opacity = 0;
+
+    tween(label.node)
+      .delay(delay)
+      .to(0.22, { position: v3(start.x, start.y + 12, 0) })
+      .to(0.48, { position: v3(start.x, start.y + 34, 0) })
+      .call(() => label.node.destroy())
+      .start();
+    tween(opacity)
+      .delay(delay)
+      .to(0.12, { opacity: 255 })
+      .delay(0.35)
+      .to(0.23, { opacity: 0 })
+      .start();
+  }
+
+  private loadSfx(): void {
+    this.audioSource = this.node.getComponent(AudioSource) ?? this.node.addComponent(AudioSource);
+    resources.loadDir("audio", AudioClip, (error, clips) => {
+      if (error) {
+        console.warn("Unable to load prototype SFX", error);
+        return;
+      }
+      clips.forEach((clip) => this.sfxClips.set(clip.name, clip));
+    });
+  }
+
+  private playSfx(name: string, volume: number): void {
+    const clip = this.sfxClips.get(name);
+    if (clip && this.audioSource) {
+      this.audioSource.playOneShot(clip, volume);
+    }
   }
 
   private updateState(state: OpeningOrderState): void {
@@ -1074,7 +1330,11 @@ export class BouquetPrototype extends Component {
     const button = this.createPanel("Button", x, y, width, 48, color);
     this.createLabel(text, -width / 2 + 12, 0, 15, Color.WHITE, width - 24, button);
     // Visibility can change later, so the callback must not capture its initial value.
-    button.on(Node.EventType.TOUCH_END, onTouch);
+    button.on(Node.EventType.TOUCH_END, () => {
+      if (!this.transitionLocked) {
+        onTouch();
+      }
+    });
     button.active = visible;
     return button;
   }
