@@ -40,46 +40,48 @@
 
 ## 平台与技术方向
 
-- 首发平台：移动端优先 Web 游戏
-- 部署目标：静态站点公开部署
-- 当前技术栈：TypeScript + Phaser + Vite
-- 首版存档：浏览器本地存档
-- 后续方向：核心循环验证后，再评估微信或抖音小游戏迁移
+- 主工程：Cocos Creator 3.8.8 + TypeScript
+- 首个公开试玩：移动端优先 Web 构建
+- 后续发布目标：微信小游戏、抖音小游戏
+- 首版存档：平台本地存档；暂不接入后端、账号、支付或真实广告
+- 旧 Phaser 原型：保留在 `prototypes/phaser-bouquet/`，仅作交互决策记录
 
-选择 Web 首发，是为了以最低开发、部署和审核成本跑通完整流程。首版不接入后端、账号、真实广告或支付。
+选择 Cocos 是为了让同一套核心工程可以面向 Web、微信和抖音小游戏构建，同时保留适合 2D 游戏的场景、动画、资源和触屏工作流。Web 仍作为最低成本、最快迭代的首个公开试玩渠道。
 
 ## 本地运行
 
-项目使用 Node.js 24。首次运行：
+本机当前使用 Cocos Creator 3.8.8：
+
+```bash
+open -n /Users/bytedance/Applications/CocosCreator-3.8.8/CocosCreator.app \
+  --args --project /Users/bytedance/Games/First_Mini_Game
+```
+
+在 Creator 中打开 `assets/scenes/Main.scene` 并点击预览。纯业务规则测试仍使用 Node.js 24：
 
 ```bash
 nvm use
-npm install
-npm run dev
+npm --prefix tools/domain-tests run test
 ```
 
-常用验证命令：
-
-```bash
-npm run test
-npm run typecheck
-npm run build
-```
+完整开发、构建和目录约定见 [Cocos 工作流](docs/COCOS_WORKFLOW.md)。
 
 ## 文档
 
 - [产品规划](docs/PRODUCT_PLAN.md)
 - [MVP 规格与验收标准](docs/MVP_SPEC.md)
 - [美术方向](docs/ART_DIRECTION.md)
+- [Cocos 工作流](docs/COCOS_WORKFLOW.md)
 - [项目协作规则](AGENTS.md)
 
 ## 当前状态
 
-已完成首个可玩技术原型，当前可验证：
+已完成首个 Phaser 可玩技术原型，并将项目正式迁移到 Cocos Creator。当前 Cocos 迁移骨架可验证：
 
 - 四类花材从底部托盘拖入花束。
 - 花材按主花、配花、线条花和填充花自动吸附到兼容位置。
-- 玩家完成选择后，系统进行轻微构图整理并补齐包装。
-- 移动端竖屏与桌面浏览器均可运行。
+- 玩家完成选择后，系统调用轻微构图整理接口。
+- 花束规则可脱离 Cocos 独立测试。
+- Cocos Web Mobile、微信小游戏与抖音小游戏发布构建已跑通。
 
-当前程序绘制花朵仅用于交互验证，不代表最终美术品质。下一阶段将围绕“开业第一单”补齐种植、收获、订单交付和代币奖励，跑通最小核心循环。
+当前程序绘制的色块只用于迁移和交互验证，明确不代表最终 UI 或美术品质。下一阶段将先搭建“开业第一单”的场景与状态流，再逐步接入正式花圃和花材资产。

@@ -1,10 +1,23 @@
-.DS_Store
+# Cocos Creator generated directories
+/library/
+/temp/
+/local/
+/build/
+/profiles/
+/native/engine/android/**/*/assets
+
+# Node and test output
 node_modules/
-dist/
 coverage/
+dist/
+
+# Local environment
+.DS_Store
 .env
 .env.*
 !.env.example
+.vscode/
+.idea/
 
 # Local references may contain third-party screenshots and must not be published.
 风格素材/
