@@ -58,14 +58,14 @@ export const MATERIALS: readonly MaterialDefinition[] = [
 
 // Slot coordinates use a 430 x 760 top-left origin so rules remain renderer-agnostic.
 export const BOUQUET_SLOTS: readonly BouquetSlot[] = [
-  { id: "line-left", role: "line", x: 147, y: 248, scale: 0.93, rotation: -0.17, depth: 12 },
-  { id: "line-right", role: "line", x: 286, y: 244, scale: 0.9, rotation: 0.18, depth: 13 },
-  { id: "secondary-left", role: "secondary", x: 153, y: 342, scale: 0.88, rotation: -0.12, depth: 25 },
-  { id: "secondary-right", role: "secondary", x: 282, y: 347, scale: 0.86, rotation: 0.14, depth: 26 },
-  { id: "focal-left", role: "focal", x: 192, y: 313, scale: 1, rotation: -0.05, depth: 35 },
-  { id: "focal-right", role: "focal", x: 246, y: 329, scale: 0.96, rotation: 0.08, depth: 36 },
-  { id: "filler-left", role: "filler", x: 180, y: 381, scale: 0.8, rotation: -0.08, depth: 45 },
-  { id: "filler-right", role: "filler", x: 258, y: 387, scale: 0.78, rotation: 0.1, depth: 46 },
+  { id: "line-left", role: "line", x: 178, y: 280, scale: 0.72, rotation: -0.12, depth: 12 },
+  { id: "line-right", role: "line", x: 252, y: 280, scale: 0.68, rotation: 0.12, depth: 13 },
+  { id: "secondary-left", role: "secondary", x: 181, y: 336, scale: 0.72, rotation: -0.08, depth: 25 },
+  { id: "secondary-right", role: "secondary", x: 250, y: 337, scale: 0.69, rotation: 0.08, depth: 26 },
+  { id: "focal-left", role: "focal", x: 199, y: 312, scale: 0.84, rotation: -0.04, depth: 35 },
+  { id: "focal-right", role: "focal", x: 233, y: 318, scale: 0.8, rotation: 0.04, depth: 36 },
+  { id: "filler-left", role: "filler", x: 198, y: 368, scale: 0.62, rotation: -0.04, depth: 45 },
+  { id: "filler-right", role: "filler", x: 235, y: 370, scale: 0.58, rotation: 0.04, depth: 46 },
 ] as const;
 
 export const getMaterial = (materialId: MaterialId): MaterialDefinition => {

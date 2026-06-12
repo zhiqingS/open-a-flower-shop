@@ -130,11 +130,11 @@ interface PrototypeArtSpec {
 }
 
 const FLOWER_ART: Record<FlowerId, PrototypeArtSpec> = {
-  dahlia: { ids: ["dahlia-1", "dahlia-2"], width: 88, height: 104 },
-  ranunculus: { ids: ["ranunculus-peach-1", "ranunculus-peach-2"], width: 82, height: 104 },
-  delphinium: { ids: ["delphinium-1", "delphinium-2"], width: 70, height: 128, yOffset: 2 },
-  daisy: { ids: ["daisy-1", "daisy-2"], width: 74, height: 116 },
-  "coral-rose": { ids: ["ranunculus-peach-2"], width: 78, height: 100 },
+  dahlia: { ids: ["dahlia-1", "dahlia-2"], width: 72, height: 86 },
+  ranunculus: { ids: ["ranunculus-peach-1", "ranunculus-peach-2"], width: 68, height: 86 },
+  delphinium: { ids: ["delphinium-1", "delphinium-2"], width: 50, height: 96, yOffset: 2 },
+  daisy: { ids: ["daisy-1", "daisy-2"], width: 58, height: 90 },
+  "coral-rose": { ids: ["ranunculus-peach-2"], width: 66, height: 84 },
 };
 
 const PHASE_NAMES: Record<OpeningOrderPhase, string> = {
@@ -172,6 +172,7 @@ export class BouquetPrototype extends Component {
   private secondRound?: SecondRoundState;
   private placements: Placement[] = [];
   private placedNodes: Node[] = [];
+  private slotHintNodes = new Map<string, Node>();
   private trayItems = new Map<MaterialId, Node>();
   private countLabels = new Map<MaterialId, Label>();
   private instruction?: Label;
@@ -184,6 +185,8 @@ export class BouquetPrototype extends Component {
   private artFrames = new Map<PrototypeArtId, SpriteFrame>();
   private artRefreshDone = false;
   private root?: Node;
+  private workshopWrapperFront?: Node;
+  private workshopRibbon?: Node;
 
   start(): void {
     // Keep the full portrait play area visible on both phones and desktop browsers.
@@ -204,11 +207,14 @@ export class BouquetPrototype extends Component {
     this.root.destroyAllChildren();
     this.trayItems.clear();
     this.countLabels.clear();
+    this.slotHintNodes.clear();
     this.placedNodes = [];
     this.matureFlowerNodes = [];
     this.finishButton = undefined;
     this.instruction = undefined;
     this.progress = undefined;
+    this.workshopWrapperFront = undefined;
+    this.workshopRibbon = undefined;
 
     this.createPanel("Background", 0, 0, DESIGN_WIDTH, DESIGN_HEIGHT, COLORS.background, undefined, this.root, 0);
 
@@ -485,9 +491,11 @@ export class BouquetPrototype extends Component {
     this.progress = this.createLabel("完成度 0 / 8", 80, 245, 13, COLORS.muted, 120);
 
     this.createPanel("Workspace", 0, 25, 380, 430, COLORS.panel);
+    this.createWorkshopWrapperBack();
     BOUQUET_SLOTS.forEach((slot) => this.createSlotHint(slot));
     this.createTray();
     this.createFinishButton();
+    this.refreshWorkshopWrapperFront();
     this.updateBouquetState();
   }
 
@@ -556,6 +564,57 @@ export class BouquetPrototype extends Component {
     this.createFlowerSymbol(placed, materialId, 0, 0, 1);
     this.placements.push({ materialId, slotId: slot.id });
     this.placedNodes.push(placed);
+    this.slotHintNodes.get(slot.id)?.destroy();
+    this.slotHintNodes.delete(slot.id);
+    this.sortPlacedBouquetNodes();
+    this.refreshWorkshopWrapperFront();
+  }
+
+  private createWorkshopWrapperBack(): void {
+    if (!this.root) {
+      return;
+    }
+
+    if (!this.createPrototypeArtSprite(this.root, "wrapper-back", 0, -8, 190, 178)) {
+      this.createPanel(
+        "WorkshopWrapperBack",
+        0,
+        -8,
+        166,
+        184,
+        new Color(241, 222, 190, 255),
+        undefined,
+        this.root,
+        26,
+      );
+    }
+  }
+
+  private refreshWorkshopWrapperFront(): void {
+    if (!this.root) {
+      return;
+    }
+
+    this.workshopWrapperFront?.destroy();
+    this.workshopRibbon?.destroy();
+
+    this.workshopWrapperFront =
+      this.createPrototypeArtSprite(this.root, "wrapper-front", 0, -62, 178, 150) ??
+      this.createPanel(
+        "WorkshopWrapperFront",
+        0,
+        -64,
+        148,
+        112,
+        new Color(250, 233, 210, 255),
+        undefined,
+        this.root,
+        22,
+      );
+
+    this.workshopRibbon =
+      this.createPrototypeArtSprite(this.root, "ribbon-pink", 0, -122, 88, 104) ??
+      this.createPanel("WorkshopRibbon", 0, -88, 82, 16, COLORS.accent, undefined, this.root, 8);
   }
 
   private createSlotHint(slot: BouquetSlot): void {
@@ -572,6 +631,22 @@ export class BouquetPrototype extends Component {
     graphics.circle(0, 0, slot.role === "line" ? 22 : 28);
     graphics.stroke();
     this.root.addChild(hint);
+    this.slotHintNodes.set(slot.id, hint);
+  }
+
+  private sortPlacedBouquetNodes(): void {
+    if (!this.root) {
+      return;
+    }
+
+    const depthBySlotId = new Map(BOUQUET_SLOTS.map((slot) => [slot.id, slot.depth]));
+    this.placedNodes
+      .map((node, index) => ({
+        node,
+        depth: depthBySlotId.get(this.placements[index]?.slotId ?? "") ?? 0,
+      }))
+      .sort((a, b) => a.depth - b.depth)
+      .forEach(({ node }) => node.setSiblingIndex(this.root!.children.length - 1));
   }
 
   private createFinishButton(): void {
@@ -647,10 +722,10 @@ export class BouquetPrototype extends Component {
 
   private renderDelivery(): void {
     this.createLabel("你完成了第一束花，现在把它交给等待的顾客。", -185, 276, 14, COLORS.muted, 370);
-    this.createPanel("BouquetCard", 0, 55, 340, 400, COLORS.panel, new Color(231, 219, 201, 255));
-    this.createBouquetPreview(0, 84, 1.18);
-    this.createLabel(OPENING_ORDER.bouquetName, -130, -95, 23, COLORS.text, 260);
-    this.createLabel("由你亲手种植并制作", -130, -130, 13, COLORS.muted, 260);
+    this.createPanel("BouquetCard", 0, 35, 340, 405, COLORS.panel, new Color(231, 219, 201, 255));
+    this.createBouquetPreview(0, 116, 1.02);
+    this.createLabel(OPENING_ORDER.bouquetName, -130, -112, 22, COLORS.text, 260);
+    this.createLabel("由你亲手种植并制作", -130, -148, 13, COLORS.muted, 260);
     this.createButton(
       `交付订单，获得 ${OPENING_ORDER.rewardCoins} 金币`,
       0,
@@ -1217,22 +1292,22 @@ export class BouquetPrototype extends Component {
     preview.setScale(scale, scale, 1);
     this.root!.addChild(preview);
 
-    if (!this.createPrototypeArtSprite(preview, "wrapper-back", 0, -45, 152, 142)) {
-      this.createPanel("WrapperBack", 0, -45, 130, 155, new Color(236, 218, 187, 255), undefined, preview, 28);
+    if (!this.createPrototypeArtSprite(preview, "wrapper-back", 0, -42, 144, 134)) {
+      this.createPanel("WrapperBack", 0, -42, 124, 148, new Color(236, 218, 187, 255), undefined, preview, 28);
     }
-    this.createFlowerSymbol(preview, "delphinium", -48, 60, 0.85);
-    this.createFlowerSymbol(preview, "delphinium", 48, 55, 0.8);
-    this.createFlowerSymbol(preview, "ranunculus", -43, 8, 0.9);
-    this.createFlowerSymbol(preview, "ranunculus", 45, 12, 0.85);
-    this.createFlowerSymbol(preview, "dahlia", -18, 30, 1);
-    this.createFlowerSymbol(preview, "dahlia", 27, 20, 0.95);
-    this.createFlowerSymbol(preview, "daisy", -35, -14, 0.72);
-    this.createFlowerSymbol(preview, "daisy", 38, -18, 0.7);
-    if (!this.createPrototypeArtSprite(preview, "wrapper-front", 0, -68, 140, 118)) {
-      this.createPanel("WrapperFront", 0, -70, 115, 88, new Color(248, 232, 207, 255), undefined, preview, 24);
+    this.createFlowerSymbol(preview, "delphinium", -38, 55, 0.64);
+    this.createFlowerSymbol(preview, "delphinium", 39, 53, 0.6);
+    this.createFlowerSymbol(preview, "ranunculus", -33, 5, 0.62);
+    this.createFlowerSymbol(preview, "ranunculus", 34, 6, 0.58);
+    this.createFlowerSymbol(preview, "dahlia", -13, 28, 0.7);
+    this.createFlowerSymbol(preview, "dahlia", 21, 25, 0.68);
+    this.createFlowerSymbol(preview, "daisy", -21, -2, 0.48);
+    this.createFlowerSymbol(preview, "daisy", 23, -3, 0.46);
+    if (!this.createPrototypeArtSprite(preview, "wrapper-front", 0, -66, 136, 114)) {
+      this.createPanel("WrapperFront", 0, -68, 112, 86, new Color(248, 232, 207, 255), undefined, preview, 24);
     }
-    if (!this.createPrototypeArtSprite(preview, "ribbon-pink", 0, -108, 88, 103)) {
-      this.createPanel("Ribbon", 0, -78, 74, 15, COLORS.accent, undefined, preview, 8);
+    if (!this.createPrototypeArtSprite(preview, "ribbon-pink", 0, -104, 70, 82)) {
+      this.createPanel("Ribbon", 0, -78, 70, 14, COLORS.accent, undefined, preview, 8);
     }
   }
 
