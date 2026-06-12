@@ -19,5 +19,8 @@ dist/
 .vscode/
 .idea/
 
+# Cocos service configuration may contain platform App IDs.
+settings/v2/packages/cocos-service.json
+
 # Local references may contain third-party screenshots and must not be published.
 风格素材/

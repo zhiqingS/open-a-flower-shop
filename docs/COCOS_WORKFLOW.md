@@ -19,7 +19,7 @@ assets/
   scenes/       Cocos 场景
   scripts/
     domain/     不依赖 Cocos 的纯业务规则与配置
-    prototype/  当前迁移期交互骨架，后续会被正式场景替换
+    prototype/  当前第一单可玩线框，后续会被正式场景与资产替换
 prototypes/
   phaser-bouquet/  已归档的首个 Web 原型
 tools/
@@ -82,8 +82,11 @@ open -n "$COCOS" --args \
 不得提交：
 
 - `library/`、`temp/`、`build/`、`local/`、`profiles/`。
+- 可能包含平台 App ID 的 `settings/v2/packages/cocos-service.json`。
 - 本地竞品截图、参考图或未经授权的第三方素材。
 
 ## 当前边界
 
-`assets/scripts/prototype/BouquetPrototype.ts` 是迁移期技术骨架，只验证 Cocos 场景启动、拖放、规则调用和自动整理接口。Web Mobile、微信小游戏与抖音小游戏发布构建均已通过。其色块、布局和文案不代表正式视觉方案，后续应由“开业第一单”的正式场景替换。
+`assets/scripts/prototype/BouquetPrototype.ts` 当前承载“开业第一单”的完整可玩线框：订单、种植、照料、收获、DIY、交付和再次购买均已接入纯领域状态流。它用于验证流程节奏和交互，不代表正式视觉方案，后续应拆分为正式场景并接入花圃和花材资产。
+
+`assets/scripts/domain/openingOrder.ts` 是第一单状态流的唯一业务规则来源。修改订单阶段、库存、奖励或种植规则时，应同步补充 `tools/domain-tests/tests/openingOrder.test.ts`，避免将规则写回 Cocos 场景组件。
