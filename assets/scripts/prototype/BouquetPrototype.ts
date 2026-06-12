@@ -66,7 +66,6 @@ const COLORS = {
   blue: new Color(111, 161, 190, 255),
   gold: new Color(222, 169, 78, 255),
   success: new Color(94, 153, 110, 255),
-  disabled: new Color(196, 193, 181, 255),
 } as const;
 
 const MATERIAL_COLORS: Record<MaterialId, Color> = {
@@ -618,16 +617,13 @@ export class BouquetPrototype extends Component {
     width: number,
     onTouch: () => void,
     color = COLORS.accent,
-    active = true,
+    visible = true,
   ): Node {
-    const button = this.createPanel("Button", x, y, width, 48, active ? color : COLORS.disabled);
+    const button = this.createPanel("Button", x, y, width, 48, color);
     this.createLabel(text, -width / 2 + 12, 0, 15, Color.WHITE, width - 24, button);
-    button.on(Node.EventType.TOUCH_END, () => {
-      if (active) {
-        onTouch();
-      }
-    });
-    button.active = active;
+    // Visibility can change later, so the callback must not capture its initial value.
+    button.on(Node.EventType.TOUCH_END, onTouch);
+    button.active = visible;
     return button;
   }
 
