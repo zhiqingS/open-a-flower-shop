@@ -71,6 +71,7 @@ npm --prefix tools/domain-tests run test
 - [产品规划](docs/PRODUCT_PLAN.md)
 - [MVP 规格与验收标准](docs/MVP_SPEC.md)
 - [美术方向](docs/ART_DIRECTION.md)
+- [美术资产生产计划](docs/ASSET_PRODUCTION_PLAN.md)
 - [Cocos 工作流](docs/COCOS_WORKFLOW.md)
 - [项目协作规则](AGENTS.md)
 
