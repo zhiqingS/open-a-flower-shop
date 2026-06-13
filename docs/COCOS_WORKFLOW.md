@@ -46,8 +46,24 @@ open -n /Users/bytedance/Applications/CocosCreator-3.8.8/CocosCreator.app \
 ```bash
 cd /Users/bytedance/Games/First_Mini_Game
 nvm use
-npm --prefix tools/domain-tests run test
+npm run test:domain
 ```
+
+## Web 预览
+
+当前不使用 Codex 内置浏览器预览 Cocos Web 包。Web Mobile 构建完成后，从仓库根目录启动静态服务：
+
+```bash
+npm run preview:web
+```
+
+然后在 Chrome、Safari 或其他普通浏览器中打开：
+
+```text
+http://127.0.0.1:7484/?v=manual
+```
+
+如果浏览器疑似缓存旧资源，修改 `v` 参数即可强制重新请求入口页，例如 `?v=bouquet-v02-1`。
 
 ## 平台构建
 
@@ -87,7 +103,9 @@ open -n "$COCOS" --args \
 
 ## 当前边界
 
-`assets/scripts/prototype/BouquetPrototype.ts` 当前承载“开业第一单 + 首单后第二轮”的完整可玩线框：订单、种植、照料、收获、DIY、交付、免费发现、花束选择、一键收割和升级解锁均已接入纯领域状态流。它用于验证流程节奏和交互，不代表正式视觉方案，后续应拆分为正式场景并接入花圃和花材资产。
+`assets/scripts/prototype/BouquetPrototype.ts` 当前只承载首束花制作验证 `cutout-v02`：加载 `template-base + 4 个透明花头`，玩家拖入 4 个花头后，系统按固定模板补到多个位置，验证“玩家投入，系统整理”的辅助式 DIY 体验。
+
+旧版“开业第一单 + 首单后第二轮”的纯业务规则仍保留在 `assets/scripts/domain/`，用于后续接回完整闭环；本轮不继续扩种植、订单、奖励或第二轮引导。由于 Cocos 会将 `assets/scripts` 下脚本纳入构建，构建产物中可能仍包含旧 domain 字符串，但当前可见运行入口应只显示花束制作验证页。
 
 `assets/scripts/domain/openingOrder.ts` 是第一单状态流的唯一业务规则来源。修改订单阶段、库存、奖励或种植规则时，应同步补充 `tools/domain-tests/tests/openingOrder.test.ts`，避免将规则写回 Cocos 场景组件。
 

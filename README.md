@@ -60,7 +60,19 @@ open -n /Users/bytedance/Applications/CocosCreator-3.8.8/CocosCreator.app \
 
 ```bash
 nvm use
-npm --prefix tools/domain-tests run test
+npm run test:domain
+```
+
+Web Mobile 构建完成后，使用外部浏览器预览：
+
+```bash
+npm run preview:web
+```
+
+然后在 Chrome、Safari 或其他普通浏览器中打开：
+
+```text
+http://127.0.0.1:7484/?v=manual
 ```
 
 完整开发、构建和目录约定见 [Cocos 工作流](docs/COCOS_WORKFLOW.md)。
@@ -77,7 +89,7 @@ npm --prefix tools/domain-tests run test
 
 ## 当前状态
 
-已完成首个 Phaser 可玩技术原型，并将项目正式迁移到 Cocos Creator。当前 Cocos 线框版本已经可以完整体验“开业第一单”：
+已完成首个 Phaser 可玩技术原型，并将项目正式迁移到 Cocos Creator。旧版 Cocos 线框已经验证过“开业第一单”完整闭环：
 
 - 接取订单并领取四种系统赠送种子。
 - 在 6 块新手土地完成种植、批量浇水、施肥、除虫、免费成熟和收割。

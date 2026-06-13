@@ -2,6 +2,10 @@
   "name": "open-a-flower-shop",
   "version": "3.8.8",
   "private": true,
+  "scripts": {
+    "preview:web": "python3 -m http.server 7484 --directory build/web-mobile",
+    "test:domain": "npm --prefix tools/domain-tests run test"
+  },
   "type": "2d",
   "uuid": "a3be0810-5f9a-4a63-864c-cfb33e7c770a",
   "creator": {
