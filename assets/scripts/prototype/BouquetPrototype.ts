@@ -77,17 +77,16 @@ import {
   type SecondRoundState,
 } from "../domain/secondRound";
 import {
-  BOUQUET_ART_IDS,
-  BOUQUET_ART_ROOT,
-  FLOWER_ART,
-  OPENING_BOUQUET_PREVIEW_LAYERS,
-  WORKSHOP_BACK_LAYERS,
-  WORKSHOP_FRONT_LAYERS,
-  type BouquetArtId,
-  type BouquetArtLayer,
-  type BouquetVisualLayer,
-  type FlowerArtSpec,
-} from "./bouquetVisualConfig";
+  BOUQUET_TEMPLATE_V04_ART_IDS,
+  BOUQUET_TEMPLATE_V04_BASE_LAYERS,
+  BOUQUET_TEMPLATE_V04_FRONT_LAYERS,
+  BOUQUET_TEMPLATE_V04_PREVIEWS,
+  BOUQUET_TEMPLATE_V04_ROOT,
+  BOUQUET_TEMPLATE_V04_SLOT_GROUPS,
+  type BouquetTemplateV04ArtId,
+  type BouquetTemplateV04Layer,
+  type BouquetTemplateV04SlotGroup,
+} from "./bouquetTemplateV04Config";
 
 const { ccclass } = _decorator;
 
@@ -163,11 +162,9 @@ export class BouquetPrototype extends Component {
   private transitionLocked = false;
   private audioSource?: AudioSource;
   private sfxClips = new Map<string, AudioClip>();
-  private artFrames = new Map<BouquetArtId, SpriteFrame>();
-  private artRefreshDone = false;
+  private templateV04Frames = new Map<BouquetTemplateV04ArtId, SpriteFrame>();
+  private templateV04RefreshDone = false;
   private root?: Node;
-  private workshopWrapperFront?: Node;
-  private workshopRibbon?: Node;
 
   start(): void {
     // Keep the full portrait play area visible on both phones and desktop browsers.
@@ -176,7 +173,7 @@ export class BouquetPrototype extends Component {
     this.root.addComponent(UITransform).setContentSize(DESIGN_WIDTH, DESIGN_HEIGHT);
     this.node.addChild(this.root);
     this.loadSfx();
-    this.loadPrototypeArt();
+    this.loadTemplateV04Art();
     this.renderStage();
   }
 
@@ -194,8 +191,6 @@ export class BouquetPrototype extends Component {
     this.finishButton = undefined;
     this.instruction = undefined;
     this.progress = undefined;
-    this.workshopWrapperFront = undefined;
-    this.workshopRibbon = undefined;
 
     this.createPanel("Background", 0, 0, DESIGN_WIDTH, DESIGN_HEIGHT, COLORS.background, undefined, this.root, 0);
 
@@ -290,7 +285,7 @@ export class BouquetPrototype extends Component {
     this.createPanel("OrderCard", 0, 50, 370, 390, COLORS.panel, new Color(231, 219, 201, 255));
     this.createLabel(OPENING_ORDER.title, -155, 218, 23, COLORS.text, 310);
     this.createLabel(`目标：${OPENING_ORDER.bouquetName}`, -155, 182, 15, COLORS.accentDark, 310);
-    this.createBouquetPreview(0, 45, 1);
+    this.createBouquetPreview(0, 55, 0.85);
     this.createLabel("需要种植四类花材，完成后获得", -140, -95, 13, COLORS.muted, 280);
     this.createLabel(`金币 ${OPENING_ORDER.rewardCoins}`, -70, -130, 18, COLORS.gold, 140);
     this.createButton(
@@ -472,11 +467,10 @@ export class BouquetPrototype extends Component {
     this.progress = this.createLabel("完成度 0 / 8", 80, 245, 13, COLORS.muted, 120);
 
     this.createPanel("Workspace", 0, 25, 380, 430, COLORS.panel);
-    this.createWorkshopWrapperBack();
+    this.refreshPlacedBouquetVisuals();
     BOUQUET_SLOTS.forEach((slot) => this.createSlotHint(slot));
     this.createTray();
     this.createFinishButton();
-    this.refreshWorkshopWrapperFront();
     this.updateBouquetState();
   }
 
@@ -536,40 +530,10 @@ export class BouquetPrototype extends Component {
       return;
     }
 
-    const placed = new Node(`${getMaterial(materialId).name}-${slot.id}`);
-    placed.addComponent(UITransform).setContentSize(74, 74);
-    placed.setPosition(this.logicalToLocal(slot.x, slot.y));
-    placed.setScale(slot.scale, slot.scale, 1);
-    placed.angle = (slot.rotation * 180) / Math.PI;
-    this.root.addChild(placed);
-    this.createFlowerSymbol(placed, materialId, 0, 0, 1);
     this.placements.push({ materialId, slotId: slot.id });
-    this.placedNodes.push(placed);
     this.slotHintNodes.get(slot.id)?.destroy();
     this.slotHintNodes.delete(slot.id);
-    this.sortPlacedBouquetNodes();
-    this.refreshWorkshopWrapperFront();
-  }
-
-  private createWorkshopWrapperBack(): void {
-    if (!this.root) {
-      return;
-    }
-
-    this.createBouquetArtLayers(this.root, WORKSHOP_BACK_LAYERS);
-  }
-
-  private refreshWorkshopWrapperFront(): void {
-    if (!this.root) {
-      return;
-    }
-
-    this.workshopWrapperFront?.destroy();
-    this.workshopRibbon?.destroy();
-
-    const frontNodes = this.createBouquetArtLayers(this.root, WORKSHOP_FRONT_LAYERS);
-    this.workshopWrapperFront = frontNodes[0];
-    this.workshopRibbon = frontNodes[1];
+    this.refreshPlacedBouquetVisuals();
   }
 
   private createSlotHint(slot: BouquetSlot): void {
@@ -589,19 +553,13 @@ export class BouquetPrototype extends Component {
     this.slotHintNodes.set(slot.id, hint);
   }
 
-  private sortPlacedBouquetNodes(): void {
+  private refreshPlacedBouquetVisuals(): void {
     if (!this.root) {
       return;
     }
 
-    const depthBySlotId = new Map(BOUQUET_SLOTS.map((slot) => [slot.id, slot.depth]));
-    this.placedNodes
-      .map((node, index) => ({
-        node,
-        depth: depthBySlotId.get(this.placements[index]?.slotId ?? "") ?? 0,
-      }))
-      .sort((a, b) => a.depth - b.depth)
-      .forEach(({ node }) => node.setSiblingIndex(this.root!.children.length - 1));
+    this.placedNodes.forEach((node) => node.destroy());
+    this.placedNodes = this.createTemplatePlacementVisuals(this.root, this.placements);
   }
 
   private createFinishButton(): void {
@@ -678,7 +636,7 @@ export class BouquetPrototype extends Component {
   private renderDelivery(): void {
     this.createLabel("你完成了第一束花，现在把它交给等待的顾客。", -185, 276, 14, COLORS.muted, 370);
     this.createPanel("BouquetCard", 0, 35, 340, 405, COLORS.panel, new Color(231, 219, 201, 255));
-    this.createBouquetPreview(0, 116, 1.02);
+    this.createFinishedBouquetPreview(0, 92, 1);
     this.createLabel(OPENING_ORDER.bouquetName, -130, -112, 22, COLORS.text, 260);
     this.createLabel("由你亲手种植并制作", -130, -148, 13, COLORS.muted, 260);
     this.createButton(
@@ -1199,19 +1157,6 @@ export class BouquetPrototype extends Component {
     this.root!.addChild(preview);
 
     const spring = bouquetId === "spring-letter";
-    if (!this.createPrototypeArtSprite(preview, "wrapper-back", 0, -45, 148, 138)) {
-      this.createPanel(
-        "WrapperBack",
-        0,
-        -45,
-        130,
-        155,
-        spring ? new Color(221, 234, 220, 255) : new Color(244, 222, 194, 255),
-        undefined,
-        preview,
-        28,
-      );
-    }
     if (spring) {
       this.createFlowerSymbol(preview, "delphinium", -50, 60, 0.88);
       this.createFlowerSymbol(preview, "delphinium", 50, 55, 0.82);
@@ -1222,120 +1167,97 @@ export class BouquetPrototype extends Component {
     this.createFlowerSymbol(preview, "coral-rose", -26, 22, 1.05);
     this.createFlowerSymbol(preview, "coral-rose", 30, 15, 0.98);
     this.createFlowerSymbol(preview, "dahlia", 0, 45, 0.92);
-    if (!this.createPrototypeArtSprite(preview, "wrapper-front", 0, -68, 136, 114)) {
-      this.createPanel(
-        "WrapperFront",
-        0,
-        -70,
-        115,
-        88,
-        spring ? new Color(235, 242, 226, 255) : new Color(250, 233, 210, 255),
-        undefined,
-        preview,
-        24,
-      );
-    }
-    if (!this.createPrototypeArtSprite(preview, "ribbon-pink", 0, -106, 82, 96)) {
-      this.createPanel("Ribbon", 0, -78, 74, 15, spring ? COLORS.leaf : COLORS.accent, undefined, preview, 8);
-    }
   }
 
-  private createBouquetPreview(x: number, y: number, scale: number): void {
+  private createBouquetPreview(
+    x: number,
+    y: number,
+    scale: number,
+  ): void {
     const preview = new Node("BouquetPreview");
-    preview.addComponent(UITransform).setContentSize(220, 250);
+    preview.addComponent(UITransform).setContentSize(280, 320);
     preview.setPosition(x, y);
     preview.setScale(scale, scale, 1);
     this.root!.addChild(preview);
 
-    this.createBouquetVisualLayers(preview, OPENING_BOUQUET_PREVIEW_LAYERS);
+    this.createTemplateV04Bouquet(preview, undefined, true);
   }
 
-  private createBouquetVisualLayers(
-    parent: Node,
-    layers: readonly BouquetVisualLayer[],
-  ): Node[] {
-    const nodes: Node[] = [];
+  private createFinishedBouquetPreview(x: number, y: number, scale: number): void {
+    const preview = new Node("FinishedBouquetPreview");
+    preview.addComponent(UITransform).setContentSize(300, 340);
+    preview.setPosition(x, y);
+    preview.setScale(scale, scale, 1);
+    this.root!.addChild(preview);
 
-    layers.forEach((layer) => {
-      if (layer.kind === "flower") {
-        const flower = this.createFlowerSymbol(parent, layer.flowerId, layer.x, layer.y, layer.scale);
-        if (layer.angle !== undefined) {
-          flower.angle = layer.angle;
-        }
-        nodes.push(flower);
-        return;
-      }
-
-      const node = this.createBouquetArtLayer(parent, layer);
-      if (node) {
-        nodes.push(node);
-      }
-    });
-
-    return nodes;
+    this.createTemplateV04Bouquet(preview, this.placements, isBouquetComplete(this.placements));
   }
 
-  private createBouquetArtLayers(
+  private createTemplateV04Bouquet(
     parent: Node,
-    layers: readonly BouquetArtLayer[],
+    placements?: readonly Placement[],
+    showAllSlots = false,
   ): Node[] {
+    const slotGroups = this.getTemplateV04SlotGroups(placements, showAllSlots);
+    const layers = [
+      ...BOUQUET_TEMPLATE_V04_BASE_LAYERS,
+      ...slotGroups.flatMap((group) => group.layers),
+      ...BOUQUET_TEMPLATE_V04_FRONT_LAYERS,
+    ];
+
     return layers
-      .map((layer) => this.createBouquetArtLayer(parent, layer))
+      .sort((a, b) => a.depth - b.depth)
+      .map((layer) => this.createTemplateV04ArtLayer(parent, layer))
       .filter((node): node is Node => node !== undefined);
   }
 
-  private createBouquetArtLayer(
-    parent: Node,
-    layer: BouquetArtLayer,
-  ): Node | undefined {
-    const node =
-      this.createPrototypeArtSprite(parent, layer.artId, layer.x, layer.y, layer.width, layer.height) ??
-      this.createBouquetFallbackArt(parent, layer);
-
-    if (node && layer.angle !== undefined) {
-      node.angle = layer.angle;
+  private getTemplateV04SlotGroups(
+    placements: readonly Placement[] | undefined,
+    showAllSlots: boolean,
+  ): readonly BouquetTemplateV04SlotGroup[] {
+    if (showAllSlots) {
+      return BOUQUET_TEMPLATE_V04_SLOT_GROUPS;
     }
 
+    if (!placements) {
+      return [];
+    }
+
+    return placements
+      .map((placement) =>
+        BOUQUET_TEMPLATE_V04_SLOT_GROUPS.find(
+          (group) => group.slotId === placement.slotId && group.materialId === placement.materialId,
+        ),
+      )
+      .filter((group): group is BouquetTemplateV04SlotGroup => group !== undefined);
+  }
+
+  private createTemplateV04ArtLayer(
+    parent: Node,
+    layer: BouquetTemplateV04Layer,
+  ): Node | undefined {
+    const frame = this.templateV04Frames.get(layer.artId);
+    if (!frame) {
+      return undefined;
+    }
+
+    const node = new Node(`TemplateV04-${layer.artId}`);
+    const transform = node.addComponent(UITransform);
+    node.setPosition(layer.x, layer.y);
+    node.angle = layer.angle;
+    if (layer.flipX) {
+      node.setScale(-1, 1, 1);
+    }
+    const sprite = node.addComponent(Sprite);
+    sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+    sprite.spriteFrame = frame;
+    transform.setContentSize(layer.width, layer.height);
+    parent.addChild(node);
     return node;
   }
 
-  private createBouquetFallbackArt(
-    parent: Node,
-    layer: BouquetArtLayer,
-  ): Node | undefined {
-    if (layer.artId === "wrapper-back") {
-      return this.createPanel(
-        "WrapperBack",
-        layer.x,
-        layer.y,
-        layer.width * 0.82,
-        layer.height * 0.9,
-        new Color(241, 222, 190, 255),
-        undefined,
-        parent,
-        26,
-      );
-    }
-
-    if (layer.artId === "wrapper-front") {
-      return this.createPanel(
-        "WrapperFront",
-        layer.x,
-        layer.y,
-        layer.width * 0.78,
-        layer.height * 0.74,
-        new Color(250, 233, 210, 255),
-        undefined,
-        parent,
-        22,
-      );
-    }
-
-    if (layer.artId === "ribbon-pink") {
-      return this.createPanel("Ribbon", layer.x, layer.y + 28, layer.width * 0.8, 15, COLORS.accent, undefined, parent, 8);
-    }
-
-    return undefined;
+  private createTemplatePlacementVisuals(parent: Node, placements: readonly Placement[]): Node[] {
+    return this.createTemplateV04Bouquet(parent, placements);
   }
 
   private createFlowerSymbol(
@@ -1351,17 +1273,20 @@ export class BouquetPrototype extends Component {
     flower.setScale(scale, scale, 1);
     parent.addChild(flower);
 
-    const art = FLOWER_ART[materialId];
-    const artId = this.selectPrototypeArtId(art, x, y);
-    const frame = this.artFrames.get(artId);
+    const preview = BOUQUET_TEMPLATE_V04_PREVIEWS[materialId];
+    const frame = this.templateV04Frames.get(preview.artId);
     if (frame) {
       const transform = flower.getComponent(UITransform)!;
       const sprite = flower.addComponent(Sprite);
       sprite.sizeMode = Sprite.SizeMode.CUSTOM;
       sprite.spriteFrame = frame;
-      transform.setContentSize(art.width, art.height);
-      if (art.yOffset) {
-        flower.setPosition(x, y + art.yOffset);
+      transform.setContentSize(preview.width, preview.height);
+      flower.angle = preview.angle;
+      if (preview.flipX) {
+        flower.setScale(-scale, scale, 1);
+      }
+      if (preview.yOffset) {
+        flower.setPosition(x, y + preview.yOffset);
       }
       return flower;
     }
@@ -1385,39 +1310,6 @@ export class BouquetPrototype extends Component {
     }
     this.createCircle(flower, 0, materialId === "delphinium" ? 12 : 17, materialId === "daisy" ? 6 : 9, new Color(245, 205, 102, 255));
     return flower;
-  }
-
-  private selectPrototypeArtId(
-    art: FlowerArtSpec,
-    x: number,
-    y: number,
-  ): BouquetArtId {
-    const index = Math.abs(Math.round(x * 3 + y * 5)) % art.ids.length;
-    return art.ids[index]!;
-  }
-
-  private createPrototypeArtSprite(
-    parent: Node,
-    artId: BouquetArtId,
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-  ): Node | undefined {
-    const frame = this.artFrames.get(artId);
-    if (!frame) {
-      return undefined;
-    }
-
-    const node = new Node(`Art-${artId}`);
-    const transform = node.addComponent(UITransform);
-    node.setPosition(x, y);
-    const sprite = node.addComponent(Sprite);
-    sprite.sizeMode = Sprite.SizeMode.CUSTOM;
-    sprite.spriteFrame = frame;
-    transform.setContentSize(width, height);
-    parent.addChild(node);
-    return node;
   }
 
   private createSparkleBurst(
@@ -1499,25 +1391,25 @@ export class BouquetPrototype extends Component {
     });
   }
 
-  private loadPrototypeArt(): void {
-    let remaining = BOUQUET_ART_IDS.length;
+  private loadTemplateV04Art(): void {
+    let remaining = BOUQUET_TEMPLATE_V04_ART_IDS.length;
     const completeOne = (): void => {
       remaining -= 1;
-      if (remaining === 0 && this.root && !this.artRefreshDone && !this.transitionLocked) {
-        this.artRefreshDone = true;
+      if (remaining === 0 && this.root && !this.templateV04RefreshDone && !this.transitionLocked) {
+        this.templateV04RefreshDone = true;
         this.renderStage();
       }
     };
 
-    BOUQUET_ART_IDS.forEach((artId) => {
-      resources.load(`${BOUQUET_ART_ROOT}/${artId}/spriteFrame`, SpriteFrame, (error, frame) => {
+    BOUQUET_TEMPLATE_V04_ART_IDS.forEach((artId) => {
+      resources.load(`${BOUQUET_TEMPLATE_V04_ROOT}/${artId}/spriteFrame`, SpriteFrame, (error, frame) => {
         if (error || !frame) {
-          console.warn(`Unable to load prototype art: ${artId}`, error);
+          console.warn(`Unable to load bouquet template v0.4 art: ${artId}`, error);
           completeOne();
           return;
         }
 
-        this.artFrames.set(artId, frame);
+        this.templateV04Frames.set(artId, frame);
         completeOne();
       });
     });
