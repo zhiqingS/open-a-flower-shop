@@ -18,21 +18,21 @@ import {
 } from "cc";
 
 import {
-  BOUQUET_CUTOUT_V01_ART_IDS,
-  BOUQUET_CUTOUT_V01_FLOWERS,
-  BOUQUET_CUTOUT_V01_ROOT,
-  BOUQUET_CUTOUT_V01_TEMPLATE,
-  type BouquetCutoutV01ArtId,
-  type BouquetCutoutV01FlowerId,
-} from "./bouquetCutoutV01Config";
+  BOUQUET_CUTOUT_V02_ART_IDS,
+  BOUQUET_CUTOUT_V02_FLOWERS,
+  BOUQUET_CUTOUT_V02_ROOT,
+  BOUQUET_CUTOUT_V02_TEMPLATE,
+  type BouquetCutoutV02ArtId,
+  type BouquetCutoutV02FlowerId,
+} from "./bouquetCutoutV02Config";
 
 const { ccclass } = _decorator;
 
 const DESIGN_WIDTH = 430;
 const DESIGN_HEIGHT = 760;
-const TEMPLATE_WIDTH = 392;
-const TEMPLATE_CENTER_Y = 92;
-const SNAP_DISTANCE = 92;
+const TEMPLATE_WIDTH = 410;
+const TEMPLATE_CENTER_Y = 18;
+const SNAP_DISTANCE = 96;
 
 const COLORS = {
   background: new Color(246, 242, 232, 255),
@@ -44,7 +44,8 @@ const COLORS = {
   line: new Color(211, 190, 166, 210),
 } as const;
 
-type FlowerSpec = (typeof BOUQUET_CUTOUT_V01_FLOWERS)[number];
+type FlowerSpec = (typeof BOUQUET_CUTOUT_V02_FLOWERS)[number];
+type PlacementSpec = FlowerSpec["placements"][number];
 
 interface DragState {
   flower: FlowerSpec;
@@ -54,9 +55,9 @@ interface DragState {
 @ccclass("BouquetPrototype")
 export class BouquetPrototype extends Component {
   private root?: Node;
-  private frames = new Map<BouquetCutoutV01ArtId, SpriteFrame>();
-  private placed = new Set<BouquetCutoutV01FlowerId>();
-  private flowerNodes = new Map<BouquetCutoutV01FlowerId, Node>();
+  private frames = new Map<BouquetCutoutV02ArtId, SpriteFrame>();
+  private placed = new Set<BouquetCutoutV02FlowerId>();
+  private flowerNodes = new Map<BouquetCutoutV02FlowerId, Node>();
   private statusLabel?: Label;
   private progressLabel?: Label;
 
@@ -70,7 +71,7 @@ export class BouquetPrototype extends Component {
   }
 
   private loadArt(): void {
-    let remaining = BOUQUET_CUTOUT_V01_ART_IDS.length;
+    let remaining = BOUQUET_CUTOUT_V02_ART_IDS.length;
     const completeOne = (): void => {
       remaining -= 1;
       if (remaining === 0) {
@@ -78,8 +79,8 @@ export class BouquetPrototype extends Component {
       }
     };
 
-    BOUQUET_CUTOUT_V01_ART_IDS.forEach((artId) => {
-      resources.load(`${BOUQUET_CUTOUT_V01_ROOT}/${artId}/spriteFrame`, SpriteFrame, (error, frame) => {
+    BOUQUET_CUTOUT_V02_ART_IDS.forEach((artId) => {
+      resources.load(`${BOUQUET_CUTOUT_V02_ROOT}/${artId}/spriteFrame`, SpriteFrame, (error, frame) => {
         if (error || !frame) {
           console.warn(`Unable to load bouquet cutout art: ${artId}`, error);
           completeOne();
@@ -100,15 +101,15 @@ export class BouquetPrototype extends Component {
     this.flowerNodes.clear();
     this.createPanel("Background", 0, 0, DESIGN_WIDTH, DESIGN_HEIGHT, COLORS.background);
 
-    this.createLabel("花束制作验证", -190, 346, 23, COLORS.text, 190);
-    this.createLabel("拖动 4 朵花头回到固定位置，验证能否还原原型图。", -190, 315, 13, COLORS.muted, 380);
-    this.statusLabel = this.createLabel("只验证花束制作，暂时不管种植、订单和奖励。", -190, 289, 12, COLORS.accent, 380);
-    this.progressLabel = this.createLabel("完成 0 / 4", 112, 346, 14, COLORS.accent, 100);
-
     this.createTemplate();
-    this.createSlotHints();
+    this.restorePlacedFlowers();
     this.createTray();
-    this.createButton("重置", 0, -348, 130, () => this.resetBouquet(), COLORS.muted);
+
+    this.createLabel("花束制作验证 v02", -190, 350, 22, COLORS.text, 210);
+    this.createLabel("拖入 4 个花头，系统按模板自动补位。", -190, 321, 13, COLORS.muted, 300);
+    this.statusLabel = this.createLabel("只验证花束制作，暂时不管种植、订单和奖励。", -190, 294, 12, COLORS.accent, 380);
+    this.progressLabel = this.createLabel("完成 0 / 4", 105, 350, 14, COLORS.accent, 100);
+    this.createButton("重置", 160, 322, 74, () => this.resetBouquet(), COLORS.muted);
     this.refreshProgress();
   }
 
@@ -117,7 +118,7 @@ export class BouquetPrototype extends Component {
     this.createPanel("TemplateCard", 0, TEMPLATE_CENTER_Y, 404, height + 18, COLORS.panel, COLORS.line, 18);
     const template = this.createArtNode(
       "TemplateBase",
-      BOUQUET_CUTOUT_V01_TEMPLATE.artId,
+      BOUQUET_CUTOUT_V02_TEMPLATE.artId,
       0,
       TEMPLATE_CENTER_Y,
       TEMPLATE_WIDTH,
@@ -129,22 +130,11 @@ export class BouquetPrototype extends Component {
     }
   }
 
-  private createSlotHints(): void {
-    BOUQUET_CUTOUT_V01_FLOWERS.forEach((flower) => {
-      if (this.placed.has(flower.id)) {
-        return;
-      }
-      const position = this.sourceToLocal(flower.sourceX, flower.sourceY);
-      const width = flower.sourceWidth * this.templateScale();
-      const height = flower.sourceHeight * this.templateScale();
-      this.createArtNode(`SlotSkeleton-${flower.id}`, flower.slotArtId, position.x, position.y, width, height);
-    });
-  }
-
   private createTray(): void {
+    this.createPanel("FlowerTray", 0, -315, 410, 94, new Color(255, 252, 244, 238), COLORS.line, 14);
     const xPositions = [-150, -50, 50, 150];
-    BOUQUET_CUTOUT_V01_FLOWERS.forEach((flower, index) => {
-      const home = v3(xPositions[index]!, -279, 0);
+    BOUQUET_CUTOUT_V02_FLOWERS.forEach((flower, index) => {
+      const home = v3(xPositions[index]!, -316, 0);
       const node = this.createDraggableFlower(flower, home);
       this.root!.addChild(node);
       this.flowerNodes.set(flower.id, node);
@@ -175,11 +165,12 @@ export class BouquetPrototype extends Component {
   }
 
   private handleDragMove(node: Node, event: EventTouch): void {
+    node.setSiblingIndex(999);
     node.setPosition(this.touchToLocal(event));
   }
 
   private handleDragEnd(node: Node, dragState: DragState, event: EventTouch): void {
-    const target = this.sourceToLocal(dragState.flower.sourceX, dragState.flower.sourceY);
+    const target = this.placementToLocal(dragState.flower.placements[0]!);
     const local = this.touchToLocal(event);
     const distance = Math.hypot(local.x - target.x, local.y - target.y);
 
@@ -195,11 +186,12 @@ export class BouquetPrototype extends Component {
     this.placed.add(flower.id);
     const transform = node.getComponent(UITransform)!;
     const scale = this.templateScale();
-    transform.setContentSize(flower.sourceWidth * scale, flower.sourceHeight * scale);
+    const primaryPlacement = flower.placements[0]!;
+    transform.setContentSize(primaryPlacement.width * scale, primaryPlacement.height * scale);
     node.off(Node.EventType.TOUCH_MOVE);
     node.off(Node.EventType.TOUCH_END);
     node.off(Node.EventType.TOUCH_CANCEL);
-    node.setSiblingIndex(30 + flower.depth);
+    node.setSiblingIndex(30 + primaryPlacement.depth);
     tween(node)
       .to(0.18, { position: target, scale: v3(1.05, 1.05, 1) })
       .to(0.12, { scale: v3(1, 1, 1) })
@@ -211,22 +203,31 @@ export class BouquetPrototype extends Component {
   }
 
   private restorePlacedFlowers(): void {
-    BOUQUET_CUTOUT_V01_FLOWERS
-      .filter((flower) => this.placed.has(flower.id))
-      .sort((a, b) => a.depth - b.depth)
-      .forEach((flower) => {
-        const position = this.sourceToLocal(flower.sourceX, flower.sourceY);
+    const placements: Array<{ flower: FlowerSpec; placement: PlacementSpec }> = [];
+    BOUQUET_CUTOUT_V02_FLOWERS.forEach((flower) => {
+      if (!this.placed.has(flower.id)) {
+        return;
+      }
+      flower.placements.forEach((placement) => {
+        placements.push({ flower, placement });
+      });
+    });
+
+    placements
+      .sort((a, b) => a.placement.depth - b.placement.depth)
+      .forEach(({ flower, placement }) => {
+        const position = this.placementToLocal(placement);
         const scale = this.templateScale();
         const node = this.createArtNode(
-          `Placed-${flower.id}`,
+          `Placed-${flower.id}-${placement.depth}`,
           flower.artId,
           position.x,
           position.y,
-          flower.sourceWidth * scale,
-          flower.sourceHeight * scale,
+          placement.width * scale,
+          placement.height * scale,
         );
         if (node) {
-          node.setSiblingIndex(30 + flower.depth);
+          node.setSiblingIndex(30 + placement.depth);
         }
       });
     this.refreshProgress();
@@ -244,20 +245,20 @@ export class BouquetPrototype extends Component {
   private refreshProgress(): void {
     const count = this.placed.size;
     if (this.progressLabel) {
-      this.progressLabel.string = `完成 ${count} / ${BOUQUET_CUTOUT_V01_FLOWERS.length}`;
+      this.progressLabel.string = `完成 ${count} / ${BOUQUET_CUTOUT_V02_FLOWERS.length}`;
     }
     if (this.statusLabel) {
       this.statusLabel.string =
-        count === BOUQUET_CUTOUT_V01_FLOWERS.length
-          ? "还原完成：现在看到的是模板 + 4 个花头重新拼回原图。"
+        count === BOUQUET_CUTOUT_V02_FLOWERS.length
+          ? "还原完成：你拖入 4 朵花，系统按成熟模板补成一束。"
           : "只验证花束制作，暂时不管种植、订单和奖励。";
-      this.statusLabel.color = count === BOUQUET_CUTOUT_V01_FLOWERS.length ? COLORS.success : COLORS.accent;
+      this.statusLabel.color = count === BOUQUET_CUTOUT_V02_FLOWERS.length ? COLORS.success : COLORS.accent;
     }
   }
 
   private createArtNode(
     name: string,
-    artId: BouquetCutoutV01ArtId,
+    artId: BouquetCutoutV02ArtId,
     x: number,
     y: number,
     width: number,
@@ -318,8 +319,8 @@ export class BouquetPrototype extends Component {
     onClick: () => void,
     fill: Color,
   ): Node {
-    const node = this.createPanel(`Button-${text}`, x, y, width, 42, fill, undefined, 21);
-    this.createLabel(text, x - width / 2, y - 8, 15, Color.WHITE, width);
+    const node = this.createPanel(`Button-${text}`, x, y, width, 34, fill, undefined, 17);
+    this.createLabel(text, x - width / 2, y - 7, 13, Color.WHITE, width);
     node.on(Node.EventType.TOUCH_END, onClick);
     return node;
   }
@@ -350,23 +351,23 @@ export class BouquetPrototype extends Component {
     return transform.convertToNodeSpaceAR(v3(location.x, location.y, 0));
   }
 
-  private sourceToLocal(sourceX: number, sourceY: number): Vec3 {
+  private placementToLocal(placement: PlacementSpec): Vec3 {
     const scale = this.templateScale();
-    const x = (sourceX - BOUQUET_CUTOUT_V01_TEMPLATE.sourceWidth / 2) * scale;
-    const y = TEMPLATE_CENTER_Y + (BOUQUET_CUTOUT_V01_TEMPLATE.sourceHeight / 2 - sourceY) * scale;
+    const x = (placement.x - BOUQUET_CUTOUT_V02_TEMPLATE.sourceWidth / 2) * scale;
+    const y = TEMPLATE_CENTER_Y + (BOUQUET_CUTOUT_V02_TEMPLATE.sourceHeight / 2 - placement.y) * scale;
     return v3(x, y, 0);
   }
 
   private templateScale(): number {
-    return TEMPLATE_WIDTH / BOUQUET_CUTOUT_V01_TEMPLATE.sourceWidth;
+    return TEMPLATE_WIDTH / BOUQUET_CUTOUT_V02_TEMPLATE.sourceWidth;
   }
 
   private templateHeight(): number {
-    return BOUQUET_CUTOUT_V01_TEMPLATE.sourceHeight * this.templateScale();
+    return BOUQUET_CUTOUT_V02_TEMPLATE.sourceHeight * this.templateScale();
   }
 
   private traySize(flower: FlowerSpec): { width: number; height: number } {
-    const maxSize = 76;
+    const maxSize = 72;
     const ratio = flower.sourceWidth / flower.sourceHeight;
     if (ratio >= 1) {
       return { width: maxSize, height: maxSize / ratio };

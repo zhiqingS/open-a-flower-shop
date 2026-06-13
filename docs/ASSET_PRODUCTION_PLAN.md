@@ -2,19 +2,19 @@
 
 ## 当前目标
 
-v0.4 的完整资产板路线曾暂时暂停，先做了更小的 `cutout-v01` 验证：
+v0.4 的完整资产板路线曾暂时暂停，`cutout-v01` 也已经被替换。当前只做更小的 `cutout-v02` 花束制作验证：
 
-`视觉验证/GPT-第一轮/风格素材/开个花店素材/Gemini_Generated_Image_9481bn9481bn9481.png`
+`视觉验证/GPT-第一轮/风格素材/开个花店素材/Gemini_Generated_Image_3lqi8w3lqi8w3lqi.png`
 
 当前目标不是批量做很多花种，也不是一次性拆出完整包装和几十个图层，而是先证明：
 
-> 从原型图中扣掉 4 个被标注花头，再由玩家拖回这 4 个花头，最终能在 Cocos 中自然还原成一束漂亮花。
+> 玩家拖入 4 个底部花头后，系统按模板自动补到多个固定位置，最终能在 Cocos 中形成一束明显优于旧散点拼贴的花。
 
 详细设计见：
 
 `docs/BOUQUET_REDESIGN.md`
 
-第八轮开始补充一条更适合规模化的 AI 资产生产路线：
+第八轮的 AI 资产板与 chroma-key 路线已经暂停，不再作为当前运行时方案：
 
 ```text
 AI 生成完整独立花材资产板
@@ -23,7 +23,7 @@ AI 生成完整独立花材资产板
 → 将候选资产放入 Cocos resources
 ```
 
-当前候选资产目录：
+旧候选资产目录已从运行时资源中删除：
 
 ```text
 assets/resources/art/bouquet-ai-v01/
@@ -35,10 +35,10 @@ assets/resources/art/bouquet-ai-v01/
 视觉验证/第八轮-AI资产板/
 ```
 
-后处理脚本：
+旧后处理脚本已删除，不再维护：
 
 ```bash
-python3 tools/split-ai-bouquet-asset-sheet.py
+tools/split-ai-bouquet-asset-sheet.py
 ```
 
 ## 旧路线结论
@@ -59,10 +59,9 @@ python3 tools/split-ai-bouquet-asset-sheet.py
 
 | 资产 | 数量 | 用途 |
 | --- | ---: | --- |
-| 扣除 4 朵花后的模板底图 | 1 | 作为花束静态主体 |
+| 带白色线稿坑位的模板底图 | 1 | 作为花束静态主体 |
 | 花头透明 PNG | 4 | 作为玩家拖动对象 |
-| 花头骨架 PNG | 4 | 作为未放入时的花形占位 |
-| 还原预览图 | 1 | 本地检查资产是否能拼回原型 |
+| 完成预览图 | 1 | 本地检查模板补位后的观感 |
 | 透明边缘检查图 | 1 | 检查花头是否带残边 |
 
 ## 资产规格
@@ -78,34 +77,29 @@ python3 tools/split-ai-bouquet-asset-sheet.py
 
 ## 生产顺序
 
-1. 用用户标注图定位 4 个黑框。
-2. 将黑框映射回原始 Gemini 图。
-3. 抠出 4 个花头透明 PNG。
-4. 生成扣除花头后的模板底图。
-5. 输出还原预览图和透明边缘检查图。
-6. 在 Cocos 中写单页花束制作验证。
-7. 在 `430 x 760` 真实浏览器尺寸拖拽验证。
+1. 从 Gemini 新验证图裁出花束主体模板底图。
+2. 从底部素材栏拆出 4 个花头透明 PNG。
+3. 为 4 个花头配置 1 至 2 个固定模板位置。
+4. 输出完成预览图和透明边缘检查图。
+5. 在 Cocos 中写单页花束制作验证。
+6. 在 `430 x 760` 真实浏览器尺寸拖拽验证。
 
 ## 命名建议
 
 资源目录：
 
 ```text
-assets/resources/art/bouquet-cutout-v01/
+assets/resources/art/bouquet-cutout-v02/
 ```
 
 命名示例：
 
 ```text
 template-base.png
-hero-left.png
-hero-left-skeleton.png
-pink-upper-right.png
-pink-upper-right-skeleton.png
-pink-middle-right.png
-pink-middle-right-skeleton.png
-peach-lower-left.png
-peach-lower-left-skeleton.png
+peach-rosette-front.png
+pink-peony-left.png
+pink-peony-right.png
+peach-rosette-side.png
 ```
 
 ## 花束模板要求
@@ -113,10 +107,10 @@ peach-lower-left-skeleton.png
 当前模板配置只包含：
 
 - 资产 id。
-- 原图坐标。
-- 原图尺寸。
-- 吸附目标。
-- 深度。
+- 模板坐标。
+- 模板尺寸。
+- 主吸附目标。
+- 深度和可选多点补位。
 
 首版只有 1 个模板，不提前抽象多模板系统。
 
@@ -124,8 +118,8 @@ peach-lower-left-skeleton.png
 
 - 运行时只出现新模板和 4 个花头。
 - 花头不带黑框、底色块或显眼描边残留。
-- 未放入状态使用花朵骨架占位，不出现矩形补丁。
-- 拖完 4 个花头后，最终图明显接近 Gemini 原型图。
+- 未放入状态使用模板底图中的白色线稿坑位，不出现矩形补丁。
+- 拖完 4 个花头后，最终图明显优于旧散点版本。
 - 在真实浏览器预览中，第一眼明显优于旧散点版本。
 
 ## 风险与应对
@@ -135,7 +129,6 @@ peach-lower-left-skeleton.png
 | AI 单张素材风格不一致 | 先做统一资产板，再拆分 |
 | 花材拆分后边缘差 | 每张透明 PNG 单独检查边缘 |
 | AI 资产不是像素级原图抠图 | 将其定位为同风格候选资产，商用前人工筛选和修边 |
-| chroma-key 留下色边 | 使用纯色背景、本地去底、contact sheet 检查，正式资产再人工清边 |
 | 模板限制自由度 | 首版优先漂亮，后续增加包装和模板选择 |
 | 包装遮挡不自然 | 包装必须分前后层，不再程序绘制 |
 | 花束仍显得稀疏 | 增加系统自动绿叶和填充小花层 |
