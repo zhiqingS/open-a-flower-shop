@@ -76,6 +76,18 @@ import {
   type SecondRoundPlot,
   type SecondRoundState,
 } from "../domain/secondRound";
+import {
+  BOUQUET_ART_IDS,
+  BOUQUET_ART_ROOT,
+  FLOWER_ART,
+  OPENING_BOUQUET_PREVIEW_LAYERS,
+  WORKSHOP_BACK_LAYERS,
+  WORKSHOP_FRONT_LAYERS,
+  type BouquetArtId,
+  type BouquetArtLayer,
+  type BouquetVisualLayer,
+  type FlowerArtSpec,
+} from "./bouquetVisualConfig";
 
 const { ccclass } = _decorator;
 
@@ -104,37 +116,6 @@ const MATERIAL_COLORS: Record<FlowerId, Color> = {
   delphinium: new Color(118, 155, 207, 255),
   daisy: new Color(240, 237, 213, 255),
   "coral-rose": new Color(234, 132, 126, 255),
-};
-
-const PROTOTYPE_ART_IDS = [
-  "dahlia-1",
-  "dahlia-2",
-  "ranunculus-peach-1",
-  "ranunculus-peach-2",
-  "delphinium-1",
-  "delphinium-2",
-  "daisy-1",
-  "daisy-2",
-  "wrapper-back",
-  "wrapper-front",
-  "ribbon-pink",
-] as const;
-
-type PrototypeArtId = (typeof PROTOTYPE_ART_IDS)[number];
-
-interface PrototypeArtSpec {
-  ids: readonly PrototypeArtId[];
-  width: number;
-  height: number;
-  yOffset?: number;
-}
-
-const FLOWER_ART: Record<FlowerId, PrototypeArtSpec> = {
-  dahlia: { ids: ["dahlia-1", "dahlia-2"], width: 72, height: 86 },
-  ranunculus: { ids: ["ranunculus-peach-1", "ranunculus-peach-2"], width: 68, height: 86 },
-  delphinium: { ids: ["delphinium-1", "delphinium-2"], width: 50, height: 96, yOffset: 2 },
-  daisy: { ids: ["daisy-1", "daisy-2"], width: 58, height: 90 },
-  "coral-rose": { ids: ["ranunculus-peach-2"], width: 66, height: 84 },
 };
 
 const PHASE_NAMES: Record<OpeningOrderPhase, string> = {
@@ -182,7 +163,7 @@ export class BouquetPrototype extends Component {
   private transitionLocked = false;
   private audioSource?: AudioSource;
   private sfxClips = new Map<string, AudioClip>();
-  private artFrames = new Map<PrototypeArtId, SpriteFrame>();
+  private artFrames = new Map<BouquetArtId, SpriteFrame>();
   private artRefreshDone = false;
   private root?: Node;
   private workshopWrapperFront?: Node;
@@ -575,19 +556,7 @@ export class BouquetPrototype extends Component {
       return;
     }
 
-    if (!this.createPrototypeArtSprite(this.root, "wrapper-back", 0, -8, 190, 178)) {
-      this.createPanel(
-        "WorkshopWrapperBack",
-        0,
-        -8,
-        166,
-        184,
-        new Color(241, 222, 190, 255),
-        undefined,
-        this.root,
-        26,
-      );
-    }
+    this.createBouquetArtLayers(this.root, WORKSHOP_BACK_LAYERS);
   }
 
   private refreshWorkshopWrapperFront(): void {
@@ -598,23 +567,9 @@ export class BouquetPrototype extends Component {
     this.workshopWrapperFront?.destroy();
     this.workshopRibbon?.destroy();
 
-    this.workshopWrapperFront =
-      this.createPrototypeArtSprite(this.root, "wrapper-front", 0, -62, 178, 150) ??
-      this.createPanel(
-        "WorkshopWrapperFront",
-        0,
-        -64,
-        148,
-        112,
-        new Color(250, 233, 210, 255),
-        undefined,
-        this.root,
-        22,
-      );
-
-    this.workshopRibbon =
-      this.createPrototypeArtSprite(this.root, "ribbon-pink", 0, -122, 88, 104) ??
-      this.createPanel("WorkshopRibbon", 0, -88, 82, 16, COLORS.accent, undefined, this.root, 8);
+    const frontNodes = this.createBouquetArtLayers(this.root, WORKSHOP_FRONT_LAYERS);
+    this.workshopWrapperFront = frontNodes[0];
+    this.workshopRibbon = frontNodes[1];
   }
 
   private createSlotHint(slot: BouquetSlot): void {
@@ -1292,23 +1247,95 @@ export class BouquetPrototype extends Component {
     preview.setScale(scale, scale, 1);
     this.root!.addChild(preview);
 
-    if (!this.createPrototypeArtSprite(preview, "wrapper-back", 0, -42, 144, 134)) {
-      this.createPanel("WrapperBack", 0, -42, 124, 148, new Color(236, 218, 187, 255), undefined, preview, 28);
+    this.createBouquetVisualLayers(preview, OPENING_BOUQUET_PREVIEW_LAYERS);
+  }
+
+  private createBouquetVisualLayers(
+    parent: Node,
+    layers: readonly BouquetVisualLayer[],
+  ): Node[] {
+    const nodes: Node[] = [];
+
+    layers.forEach((layer) => {
+      if (layer.kind === "flower") {
+        const flower = this.createFlowerSymbol(parent, layer.flowerId, layer.x, layer.y, layer.scale);
+        if (layer.angle !== undefined) {
+          flower.angle = layer.angle;
+        }
+        nodes.push(flower);
+        return;
+      }
+
+      const node = this.createBouquetArtLayer(parent, layer);
+      if (node) {
+        nodes.push(node);
+      }
+    });
+
+    return nodes;
+  }
+
+  private createBouquetArtLayers(
+    parent: Node,
+    layers: readonly BouquetArtLayer[],
+  ): Node[] {
+    return layers
+      .map((layer) => this.createBouquetArtLayer(parent, layer))
+      .filter((node): node is Node => node !== undefined);
+  }
+
+  private createBouquetArtLayer(
+    parent: Node,
+    layer: BouquetArtLayer,
+  ): Node | undefined {
+    const node =
+      this.createPrototypeArtSprite(parent, layer.artId, layer.x, layer.y, layer.width, layer.height) ??
+      this.createBouquetFallbackArt(parent, layer);
+
+    if (node && layer.angle !== undefined) {
+      node.angle = layer.angle;
     }
-    this.createFlowerSymbol(preview, "delphinium", -38, 55, 0.64);
-    this.createFlowerSymbol(preview, "delphinium", 39, 53, 0.6);
-    this.createFlowerSymbol(preview, "ranunculus", -33, 5, 0.62);
-    this.createFlowerSymbol(preview, "ranunculus", 34, 6, 0.58);
-    this.createFlowerSymbol(preview, "dahlia", -13, 28, 0.7);
-    this.createFlowerSymbol(preview, "dahlia", 21, 25, 0.68);
-    this.createFlowerSymbol(preview, "daisy", -21, -2, 0.48);
-    this.createFlowerSymbol(preview, "daisy", 23, -3, 0.46);
-    if (!this.createPrototypeArtSprite(preview, "wrapper-front", 0, -66, 136, 114)) {
-      this.createPanel("WrapperFront", 0, -68, 112, 86, new Color(248, 232, 207, 255), undefined, preview, 24);
+
+    return node;
+  }
+
+  private createBouquetFallbackArt(
+    parent: Node,
+    layer: BouquetArtLayer,
+  ): Node | undefined {
+    if (layer.artId === "wrapper-back") {
+      return this.createPanel(
+        "WrapperBack",
+        layer.x,
+        layer.y,
+        layer.width * 0.82,
+        layer.height * 0.9,
+        new Color(241, 222, 190, 255),
+        undefined,
+        parent,
+        26,
+      );
     }
-    if (!this.createPrototypeArtSprite(preview, "ribbon-pink", 0, -104, 70, 82)) {
-      this.createPanel("Ribbon", 0, -78, 70, 14, COLORS.accent, undefined, preview, 8);
+
+    if (layer.artId === "wrapper-front") {
+      return this.createPanel(
+        "WrapperFront",
+        layer.x,
+        layer.y,
+        layer.width * 0.78,
+        layer.height * 0.74,
+        new Color(250, 233, 210, 255),
+        undefined,
+        parent,
+        22,
+      );
     }
+
+    if (layer.artId === "ribbon-pink") {
+      return this.createPanel("Ribbon", layer.x, layer.y + 28, layer.width * 0.8, 15, COLORS.accent, undefined, parent, 8);
+    }
+
+    return undefined;
   }
 
   private createFlowerSymbol(
@@ -1361,17 +1388,17 @@ export class BouquetPrototype extends Component {
   }
 
   private selectPrototypeArtId(
-    art: PrototypeArtSpec,
+    art: FlowerArtSpec,
     x: number,
     y: number,
-  ): PrototypeArtId {
+  ): BouquetArtId {
     const index = Math.abs(Math.round(x * 3 + y * 5)) % art.ids.length;
     return art.ids[index]!;
   }
 
   private createPrototypeArtSprite(
     parent: Node,
-    artId: PrototypeArtId,
+    artId: BouquetArtId,
     x: number,
     y: number,
     width: number,
@@ -1473,7 +1500,7 @@ export class BouquetPrototype extends Component {
   }
 
   private loadPrototypeArt(): void {
-    let remaining = PROTOTYPE_ART_IDS.length;
+    let remaining = BOUQUET_ART_IDS.length;
     const completeOne = (): void => {
       remaining -= 1;
       if (remaining === 0 && this.root && !this.artRefreshDone && !this.transitionLocked) {
@@ -1482,8 +1509,8 @@ export class BouquetPrototype extends Component {
       }
     };
 
-    PROTOTYPE_ART_IDS.forEach((artId) => {
-      resources.load(`art/bouquet-v2/${artId}/spriteFrame`, SpriteFrame, (error, frame) => {
+    BOUQUET_ART_IDS.forEach((artId) => {
+      resources.load(`${BOUQUET_ART_ROOT}/${artId}/spriteFrame`, SpriteFrame, (error, frame) => {
         if (error || !frame) {
           console.warn(`Unable to load prototype art: ${artId}`, error);
           completeOne();
