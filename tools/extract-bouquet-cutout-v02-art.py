@@ -375,6 +375,18 @@ def overlay_scaled(base: Image.Image, layer: Image.Image, placement: Placement) 
     base.alpha_composite(scaled, (x, y))
 
 
+def make_template_sized_layer(template: Image.Image, cutout: Image.Image, flower: Flower) -> Image.Image:
+    layer = Image.new("RGBA", template.size, (0, 0, 0, 0))
+    for placement in flower.placements:
+        overlay_scaled(layer, cutout, placement)
+    # Cocos auto-trims fully transparent sprite frames during import.
+    # Four almost invisible pixels keep the layer canvas identical to template-base.
+    pixels = layer.load()
+    for point in ((0, 0), (layer.width - 1, 0), (0, layer.height - 1), (layer.width - 1, layer.height - 1)):
+        pixels[point] = (255, 255, 255, 2)
+    return layer
+
+
 def write_config(template: Image.Image, cutouts: dict[str, Image.Image]) -> None:
     lines = [
         'export const BOUQUET_CUTOUT_V02_ROOT = "art/bouquet-cutout-v02";',
@@ -395,6 +407,7 @@ def write_config(template: Image.Image, cutouts: dict[str, Image.Image]) -> None
                 f'    id: "{flower.id}",',
                 f'    label: "{flower.label}",',
                 f'    artId: "{flower.id}",',
+                f'    layerArtId: "layer-{flower.id}",',
                 f"    sourceWidth: {cutout.width},",
                 f"    sourceHeight: {cutout.height},",
                 "    placements: [",
@@ -421,7 +434,17 @@ def write_config(template: Image.Image, cutouts: dict[str, Image.Image]) -> None
             "",
             "export const BOUQUET_CUTOUT_V02_ART_IDS = [",
             "  BOUQUET_CUTOUT_V02_TEMPLATE.artId,",
-            "  ...BOUQUET_CUTOUT_V02_FLOWERS.map((flower) => flower.artId),",
+        ],
+    )
+    for flower in FLOWERS:
+        lines.extend(
+            [
+                f'  "{flower.id}",',
+                f'  "layer-{flower.id}",',
+            ],
+        )
+    lines.extend(
+        [
             "] as const;",
             "",
             "export type BouquetCutoutV02ArtId = (typeof BOUQUET_CUTOUT_V02_ART_IDS)[number];",
@@ -449,6 +472,7 @@ def main() -> None:
 
     cutout_paths: list[Path] = []
     cutouts: dict[str, Image.Image] = {}
+    layer_paths: list[Path] = []
     for flower in FLOWERS:
         cutout = make_cutout(source.crop(flower.crop))
         path = OUTPUT_DIR / f"{flower.id}.png"
@@ -457,14 +481,21 @@ def main() -> None:
         cutout_paths.append(path)
         cutouts[flower.id] = cutout
 
+        layer = make_template_sized_layer(template, cutout, flower)
+        layer_path = OUTPUT_DIR / f"layer-{flower.id}.png"
+        layer.save(layer_path)
+        write_image_meta(layer_path, layer.width, layer.height)
+        layer_paths.append(layer_path)
+
     preview = template.copy()
     for flower in FLOWERS:
-        for placement in flower.placements:
-            overlay_scaled(preview, cutouts[flower.id], placement)
+        layer = Image.open(OUTPUT_DIR / f"layer-{flower.id}.png").convert("RGBA")
+        preview.alpha_composite(layer, (0, 0))
 
     template.save(VERIFY_DIR / "template-base-v02.png")
     preview.save(VERIFY_DIR / "template-complete-preview-v02.png")
     make_contact_sheet(cutout_paths, VERIFY_DIR / "flower-cutouts-contact-v02.png")
+    make_contact_sheet(layer_paths, VERIFY_DIR / "flower-layers-contact-v02.png")
     write_config(template, cutouts)
 
     print(f"source={SOURCE}")

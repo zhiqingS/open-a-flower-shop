@@ -11,6 +11,7 @@ export const BOUQUET_CUTOUT_V02_FLOWERS = [
     id: "peach-rosette-front",
     label: "桃橙玫瑰",
     artId: "peach-rosette-front",
+    layerArtId: "layer-peach-rosette-front",
     sourceWidth: 224,
     sourceHeight: 270,
     placements: [
@@ -27,6 +28,7 @@ export const BOUQUET_CUTOUT_V02_FLOWERS = [
     id: "pink-peony-left",
     label: "粉色主花",
     artId: "pink-peony-left",
+    layerArtId: "layer-pink-peony-left",
     sourceWidth: 261,
     sourceHeight: 265,
     placements: [
@@ -43,6 +45,7 @@ export const BOUQUET_CUTOUT_V02_FLOWERS = [
     id: "pink-peony-upper-right",
     label: "粉色上花",
     artId: "pink-peony-upper-right",
+    layerArtId: "layer-pink-peony-upper-right",
     sourceWidth: 286,
     sourceHeight: 269,
     placements: [
@@ -59,6 +62,7 @@ export const BOUQUET_CUTOUT_V02_FLOWERS = [
     id: "pink-peony-middle-right",
     label: "粉色圆花",
     artId: "pink-peony-middle-right",
+    layerArtId: "layer-pink-peony-middle-right",
     sourceWidth: 286,
     sourceHeight: 269,
     placements: [
@@ -77,7 +81,14 @@ export type BouquetCutoutV02FlowerId = (typeof BOUQUET_CUTOUT_V02_FLOWERS)[numbe
 
 export const BOUQUET_CUTOUT_V02_ART_IDS = [
   BOUQUET_CUTOUT_V02_TEMPLATE.artId,
-  ...BOUQUET_CUTOUT_V02_FLOWERS.map((flower) => flower.artId),
+  "peach-rosette-front",
+  "layer-peach-rosette-front",
+  "pink-peony-left",
+  "layer-pink-peony-left",
+  "pink-peony-upper-right",
+  "layer-pink-peony-upper-right",
+  "pink-peony-middle-right",
+  "layer-pink-peony-middle-right",
 ] as const;
 
 export type BouquetCutoutV02ArtId = (typeof BOUQUET_CUTOUT_V02_ART_IDS)[number];

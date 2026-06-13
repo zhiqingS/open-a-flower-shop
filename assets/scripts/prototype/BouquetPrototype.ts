@@ -175,58 +175,37 @@ export class BouquetPrototype extends Component {
     const distance = Math.hypot(local.x - target.x, local.y - target.y);
 
     if (distance <= SNAP_DISTANCE) {
-      this.placeFlower(node, dragState.flower, target);
+      this.placeFlower(node, dragState.flower);
       return;
     }
 
     this.returnHome(node, dragState.home);
   }
 
-  private placeFlower(node: Node, flower: FlowerSpec, target: Vec3): void {
+  private placeFlower(node: Node, flower: FlowerSpec): void {
     this.placed.add(flower.id);
-    const transform = node.getComponent(UITransform)!;
-    const scale = this.templateScale();
-    const primaryPlacement = flower.placements[0]!;
-    transform.setContentSize(primaryPlacement.width * scale, primaryPlacement.height * scale);
     node.off(Node.EventType.TOUCH_MOVE);
     node.off(Node.EventType.TOUCH_END);
     node.off(Node.EventType.TOUCH_CANCEL);
-    node.setSiblingIndex(30 + primaryPlacement.depth);
-    tween(node)
-      .to(0.18, { position: target, scale: v3(1.05, 1.05, 1) })
-      .to(0.12, { scale: v3(1, 1, 1) })
-      .call(() => {
-        this.render();
-      })
-      .start();
+    node.active = false;
+    this.render();
   }
 
   private restorePlacedFlowers(): void {
-    const placements: Array<{ flower: FlowerSpec; placement: PlacementSpec }> = [];
-    BOUQUET_CUTOUT_V02_FLOWERS.forEach((flower) => {
-      if (!this.placed.has(flower.id)) {
-        return;
-      }
-      flower.placements.forEach((placement) => {
-        placements.push({ flower, placement });
-      });
-    });
-
-    placements
-      .sort((a, b) => a.placement.depth - b.placement.depth)
-      .forEach(({ flower, placement }) => {
-        const position = this.placementToLocal(placement);
-        const scale = this.templateScale();
+    BOUQUET_CUTOUT_V02_FLOWERS.filter((flower) => this.placed.has(flower.id))
+      .sort((a, b) => a.placements[0]!.depth - b.placements[0]!.depth)
+      .forEach((flower) => {
+        const primaryPlacement = flower.placements[0]!;
         const node = this.createArtNode(
-          `Placed-${flower.id}-${placement.depth}`,
-          flower.artId,
-          position.x,
-          position.y,
-          placement.width * scale,
-          placement.height * scale,
+          `PlacedLayer-${flower.id}`,
+          flower.layerArtId,
+          0,
+          TEMPLATE_CENTER_Y,
+          TEMPLATE_WIDTH,
+          this.templateHeight(),
         );
         if (node) {
-          node.setSiblingIndex(30 + placement.depth);
+          node.setSiblingIndex(30 + primaryPlacement.depth);
         }
       });
     this.refreshProgress();
