@@ -45,7 +45,6 @@ FLOWERS = (
         (46, 2468, 336, 2738),
         (
             Placement(604, 1470, 304, 274, 42),
-            Placement(298, 1248, 214, 198, 16),
         ),
     ),
     Flower(
@@ -57,20 +56,19 @@ FLOWERS = (
         ),
     ),
     Flower(
-        "pink-peony-right",
-        "粉色圆花",
+        "pink-peony-upper-right",
+        "粉色上花",
         (760, 2462, 1090, 2738),
         (
             Placement(872, 1008, 300, 278, 18),
-            Placement(806, 1364, 326, 302, 36),
         ),
     ),
     Flower(
-        "peach-rosette-side",
-        "右侧玫瑰",
-        (1170, 2468, 1478, 2728),
+        "pink-peony-middle-right",
+        "粉色圆花",
+        (760, 2462, 1090, 2738),
         (
-            Placement(1186, 1368, 258, 250, 28),
+            Placement(806, 1364, 326, 302, 36),
         ),
     ),
 )

@@ -106,7 +106,7 @@ export class BouquetPrototype extends Component {
     this.createTray();
 
     this.createLabel("花束制作验证 v02", -190, 350, 22, COLORS.text, 210);
-    this.createLabel("拖入 4 个花头，系统按模板自动补位。", -190, 321, 13, COLORS.muted, 300);
+    this.createLabel("拖入 4 个花头，系统会吸附到模板位置。", -190, 321, 13, COLORS.muted, 320);
     this.statusLabel = this.createLabel("只验证花束制作，暂时不管种植、订单和奖励。", -190, 294, 12, COLORS.accent, 380);
     this.progressLabel = this.createLabel("完成 0 / 4", 105, 350, 14, COLORS.accent, 100);
     this.createButton("重置", 160, 322, 74, () => this.resetBouquet(), COLORS.muted);
@@ -197,7 +197,6 @@ export class BouquetPrototype extends Component {
       .to(0.12, { scale: v3(1, 1, 1) })
       .call(() => {
         this.render();
-        this.restorePlacedFlowers();
       })
       .start();
   }
@@ -250,7 +249,7 @@ export class BouquetPrototype extends Component {
     if (this.statusLabel) {
       this.statusLabel.string =
         count === BOUQUET_CUTOUT_V02_FLOWERS.length
-          ? "还原完成：你拖入 4 朵花，系统按成熟模板补成一束。"
+          ? "还原完成：4 个花头都已吸附到固定模板位置。"
           : "只验证花束制作，暂时不管种植、订单和奖励。";
       this.statusLabel.color = count === BOUQUET_CUTOUT_V02_FLOWERS.length ? COLORS.success : COLORS.accent;
     }

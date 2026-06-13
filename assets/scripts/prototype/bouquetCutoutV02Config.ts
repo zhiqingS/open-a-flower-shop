@@ -21,13 +21,6 @@ export const BOUQUET_CUTOUT_V02_FLOWERS = [
         height: 274,
         depth: 42,
       },
-      {
-        x: 298.00,
-        y: 868.00,
-        width: 214,
-        height: 198,
-        depth: 16,
-      },
     ],
   },
   {
@@ -47,9 +40,9 @@ export const BOUQUET_CUTOUT_V02_FLOWERS = [
     ],
   },
   {
-    id: "pink-peony-right",
-    label: "粉色圆花",
-    artId: "pink-peony-right",
+    id: "pink-peony-upper-right",
+    label: "粉色上花",
+    artId: "pink-peony-upper-right",
     sourceWidth: 286,
     sourceHeight: 269,
     placements: [
@@ -60,28 +53,21 @@ export const BOUQUET_CUTOUT_V02_FLOWERS = [
         height: 278,
         depth: 18,
       },
+    ],
+  },
+  {
+    id: "pink-peony-middle-right",
+    label: "粉色圆花",
+    artId: "pink-peony-middle-right",
+    sourceWidth: 286,
+    sourceHeight: 269,
+    placements: [
       {
         x: 806.00,
         y: 984.00,
         width: 326,
         height: 302,
         depth: 36,
-      },
-    ],
-  },
-  {
-    id: "peach-rosette-side",
-    label: "右侧玫瑰",
-    artId: "peach-rosette-side",
-    sourceWidth: 242,
-    sourceHeight: 258,
-    placements: [
-      {
-        x: 1186.00,
-        y: 988.00,
-        width: 258,
-        height: 250,
-        depth: 28,
       },
     ],
   },
