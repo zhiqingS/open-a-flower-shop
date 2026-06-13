@@ -11,7 +11,6 @@ import {
   Sprite,
   SpriteFrame,
   tween,
-  UIOpacity,
   UITransform,
   Vec3,
   v3,
@@ -43,7 +42,6 @@ const COLORS = {
   accent: new Color(201, 103, 123, 255),
   success: new Color(92, 151, 105, 255),
   line: new Color(211, 190, 166, 210),
-  slot: new Color(255, 244, 216, 150),
 } as const;
 
 type FlowerSpec = (typeof BOUQUET_CUTOUT_V01_FLOWERS)[number];
@@ -139,20 +137,7 @@ export class BouquetPrototype extends Component {
       const position = this.sourceToLocal(flower.sourceX, flower.sourceY);
       const width = flower.sourceWidth * this.templateScale();
       const height = flower.sourceHeight * this.templateScale();
-      const ghost = this.createArtNode(`SlotGhost-${flower.id}`, flower.artId, position.x, position.y, width, height);
-      if (ghost) {
-        ghost.addComponent(UIOpacity).opacity = 70;
-      }
-
-      const hint = new Node(`SlotHint-${flower.id}`);
-      hint.addComponent(UITransform).setContentSize(width, height);
-      hint.setPosition(position.x, position.y);
-      const graphics = hint.addComponent(Graphics);
-      graphics.lineWidth = 2.2;
-      graphics.strokeColor = COLORS.slot;
-      graphics.roundRect(-width / 2, -height / 2, width, height, Math.min(24, width * 0.18));
-      graphics.stroke();
-      this.root!.addChild(hint);
+      this.createArtNode(`SlotSkeleton-${flower.id}`, flower.slotArtId, position.x, position.y, width, height);
     });
   }
 
